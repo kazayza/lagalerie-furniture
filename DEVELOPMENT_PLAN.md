@@ -221,4 +221,42 @@
 
 ---
 
+## 9️⃣ القرارات المُتّخذة (Decisions — 2026-06-27)
+
+| القرار | الاختيار |
+|--------|---------|
+| نقطة البداية | ✅ **الأمان أولاً** (قبل أي وحدة) |
+| نمط الوصول للبيانات | ✅ **Hybrid** (Generic Repo للـ CRUD + Services للمنطق) |
+| قاعدة البيانات | ✅ **نكمّل على الـ Remote الحالية** |
+| Git | ✅ **تمت التهيئة** |
+
+---
+
+## 🔟 سجلّ التقدّم (Progress Log)
+
+### ✅ المرحلة 1 (جزئياً) — تأمين المصادقة — *تم 2026-06-27*
+
+- [x] **1.0** تهيئة Git + `.gitignore` + snapshot أولي (commit `7b58266`)
+- [x] **1.1** تثبيت `BCrypt.Net-Next 4.2.0` + إنشاء `PasswordHasher` (`Services/PasswordHasher.cs`)
+- [x] **1.3-cookie** إضافة **Cookie Authentication** (`app.UseAuthentication` + `AddAuthentication("LagalerieCookie")`)
+- [x] **1.3-link** ربط `CustomAuthStateProvider` بقراءة الـ cookie من `HttpContext` (استمرار الجلسة بعد refresh/إعادة تشغيل)
+- [x] **1.4-login** ربط الـ Login بـ `HttpContext.SignInAsync` (cookie حقيقية بـ claims: Id/Name/Email/Role) + `forceLoad` redirect
+- [x] **1.4-logout** ربط الـ Logout بـ `HttpContext.SignOutAsync`
+- [x] **1.6-auto** ترقية تلقائية للباسوردات النصية القديمة إلى BCrypt عند أول دخول ناجح
+- [x] **lockout** حماية ضد brute-force (قفل 15 دقيقة بعد 5 محاولات فاشلة) + تسجيل آخر دخول/الـ IP
+- [x] **1.6-tool** أداة CLI `migrate-passwords` لتشفير دفعة الباسوردات الموجودة (`Tools/PasswordMigrationTool.cs`)
+- [x] **1.6-sql** سكريبت SQL لإنشاء/تحديث مستخدم admin بـ BCrypt hash (`Sql/CreateAdminUser.sql`)
+
+### ⏳ المتبقّي من المرحلة 1
+- [ ] **1.5** فلترة الـ Navigation Menu حسب صلاحيات المستخدم
+- [ ] **1.7** صفحة تغيير كلمة المرور + احترام علم `MustChangePassword`
+- [ ] **1.8** إضافة `[Authorize]` / `AuthorizeView` على الصفحات المحمية
+
+### 🔜 التالي: المرحلة 2 (البنية التحتية)
+- [ ] **2.1** Generic Repository (`IRepository<T>`)
+- [ ] **2.2** `DashboardService` + ربط `Home.razor` ببيانات حقيقية + ApexCharts
+- [ ] **2.4** Reusable Components (DataGrid, ConfirmDialog, StatusBadge, PageHeader)
+
+---
+
 > 📌 **هذا الملف حيّ — يتم تحديثه بعد كل مرحلة.** ضع علامة ✅ على المهام المكتملة.

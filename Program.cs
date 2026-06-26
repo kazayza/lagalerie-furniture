@@ -8,11 +8,35 @@ using MudBlazor;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// أداة CLI لتشفير كلمات المرور الموجودة (تشغيل لمرة واحدة):
+//   dotnet run -- migrate-passwords
+if (args.Length > 0 && args[0] == "migrate-passwords")
+{
+    var exitCode = await LagalerieFurniture.Tools.PasswordMigrationTool.RunAsync(args);
+    Environment.Exit(exitCode);
+}
+
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Authentication & Authorization
+// Required for accessing HttpContext (client IP, cookie auth) inside services
+builder.Services.AddHttpContextAccessor();
+
+// Authentication & Authorization (Cookie-based)
+builder.Services.AddAuthentication("LagalerieCookie")
+    .AddCookie("LagalerieCookie", options =>
+    {
+        options.Cookie.Name = "LagalerieAuth";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.ExpireTimeSpan = TimeSpan.FromDays(7);
+        options.SlidingExpiration = true;
+        options.LoginPath = "/login";
+        options.LogoutPath = "/logout";
+        options.AccessDeniedPath = "/access-denied";
+    });
 builder.Services.AddAuthorization();
 
 // Database - with retry on failure for remote connections
@@ -98,6 +122,9 @@ builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredServ
 // Auth Service
 builder.Services.AddScoped<IAuthService, AuthService>();
 
+// Password Hasher (BCrypt)
+builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
+
 // Theme Service (for saving user preferences)
 builder.Services.AddScoped<ThemeService>();
 
@@ -112,6 +139,8 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapRazorComponents<App>()

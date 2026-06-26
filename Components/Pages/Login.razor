@@ -641,7 +641,9 @@
 
             if (success)
             {
-                Navigation.NavigateTo("/", false);
+                // forceLoad: true ضروري لإعادة تهيئة الـ circuit بعد إصدار الـ cookie
+                // عشان يقرأ حالة المصادقة الجديدة من الـ HTTP request
+                Navigation.NavigateTo("/", true);
             }
             else
             {
