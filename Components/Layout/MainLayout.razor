@@ -1,0 +1,183 @@
+@using MudBlazor
+@using LagalerieFurniture.Services
+@using System.Linq
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ThemeService ThemeService
+@inherits LayoutComponentBase
+
+@code {
+    private string _currentUsername = string.Empty;
+    private string _userRole = string.Empty;
+    private bool _drawerOpen = true;
+    private bool _isDarkMode = true;
+    private int _notificationCount = 5;
+    private string _userAvatar = "/images/default-avatar.png";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (!(user.Identity?.IsAuthenticated ?? false))
+        {
+            Navigation.NavigateTo("/login", true);
+            return;
+        }
+
+        _currentUsername = user.Identity?.Name ?? "مستخدم";
+        _userRole = user.Claims.FirstOrDefault(c => c.Type == "role")?.Value ?? "مستخدم";
+        
+        // Load saved theme preference
+        _isDarkMode = await ThemeService.IsDarkModeAsync();
+    }
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+    
+    private async Task ToggleTheme()
+    {
+        _isDarkMode = !_isDarkMode;
+        await ThemeService.SetDarkModeAsync(_isDarkMode);
+    }
+
+    private async Task OnLogout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login", true);
+    }
+}
+
+<MudThemeProvider @bind-IsDarkMode="_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Class="glass-appbar">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" OnClick="ToggleDrawer" Color="Color.Inherit" />
+        
+        <MudText Typo="Typo.h6" Style="font-weight: 700; margin-right: 12px;" Color="Color.Primary">
+            🪑 Lagalerie
+        </MudText>
+
+        <MudSpacer />
+
+        @* Search Bar *@
+        <MudTextField T="string" 
+                      Placeholder="بحث..." 
+                      Variant="Variant.Outlined" 
+                      Size="Size.Small"
+                      Style="max-width: 300px; margin-left: 16px;"
+                      InputType="InputType.Search">
+            <Adornment Start>
+                <MudIcon Icon="@Icons.Material.Filled.Search" />
+            </Adornment>
+        </MudTextField>
+
+        <MudSpacer />
+
+        @* Notifications *@
+        <div class="notification-bell">
+            <MudIcon Icon="@Icons.Material.Filled.Notifications" Size="Size.Medium" Color="Color.Inherit" />
+            @if (_notificationCount > 0)
+            {
+                <span class="notification-badge">@_notificationCount</span>
+            }
+        </div>
+
+        @* Theme Switcher *@
+        <div class="theme-switcher" @onclick="ToggleTheme">
+            <MudIcon Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" 
+                     Class="theme-icon" />
+        </div>
+
+        @* User Avatar *@
+        <MudMenu>
+            <ActivatorContent>
+                <div class="user-avatar-container">
+                    <MudAvatar Image="@_userAvatar" Size="Size.Small" Color="Color.Primary" />
+                    <div class="user-info">
+                        <span class="user-name">@_currentUsername</span>
+                        <span class="user-role">@_userRole</span>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.KeyboardArrowDown" Size="Size.Small" />
+                </div>
+            </ActivatorContent>
+            <ChildContent>
+                <MudMenuItem Href="/profile" Icon="@Icons.Material.Filled.Person">الملف الشخصي</MudMenuItem>
+                <MudMenuItem Href="/settings" Icon="@Icons.Material.Filled.Settings">الإعدادات</MudMenuItem>
+                <MudMenuItem Divider="true" />
+                <MudMenuItem OnClick="OnLogout" Icon="@Icons.Material.Filled.Logout" Color="Color.Error">تسجيل الخروج</MudMenuItem>
+            </ChildContent>
+        </MudMenu>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" 
+               Variant="DrawerVariant.Responsive" 
+               ClipMode="DrawerClipMode.Always"
+               Elevation="0"
+               Class="glass-drawer">
+        <div style="padding: 20px 16px; border-bottom: 1px solid var(--border-color);">
+            <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: var(--primary-gold);">
+                🪑 Lagalerie
+            </MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">نظام الإدارة المتكامل</MudText>
+        </div>
+        
+        <MudNavMenu>
+            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">
+                الرئيسية
+            </MudNavLink>
+            
+            <MudNavGroup Title="المبيعات" Icon="@Icons.Material.Filled.ShoppingCart" Expanded="true">
+                <MudNavLink Href="/invoices">الفواتير</MudNavLink>
+                <MudNavLink Href="/customers">العملاء</MudNavLink>
+                <MudNavLink Href="/orders">الطلبات</MudNavLink>
+            </MudNavGroup>
+            
+            <MudNavGroup Title="المخزون" Icon="@Icons.Material.Filled.Warehouse" Expanded="true">
+                <MudNavLink Href="/inventory">المنتجات</MudNavLink>
+                <MudNavLink Href="/warehouses">المخازن</MudNavLink>
+                <MudNavLink Href="/suppliers">الموردين</MudNavLink>
+            </MudNavGroup>
+            
+            <MudNavGroup Title="الإنتاج" Icon="@Icons.Material.Filled.Factory" Expanded="true">
+                <MudNavLink Href="/production-orders">أوامر الإنتاج</MudNavLink>
+                <MudNavLink Href="/work-orders">أوامر العمل</MudNavLink>
+                <MudNavLink Href="/quality">الجودة</MudNavLink>
+            </MudNavGroup>
+            
+            <MudNavGroup Title="المالية" Icon="@Icons.Material.Filled.AccountBalance" Expanded="true">
+                <MudNavLink Href="/accounts">الحسابات</MudNavLink>
+                <MudNavLink Href="/expenses">المصروفات</MudNavLink>
+                <MudNavLink Href="/reports">التقارير</MudNavLink>
+            </MudNavGroup>
+            
+            <MudNavGroup Title="الإعدادات" Icon="@Icons.Material.Filled.Settings" Expanded="false">
+                <MudNavLink Href="/users">المستخدمين</MudNavLink>
+                <MudNavLink Href="/permissions">الصلاحيات</MudNavLink>
+                <MudNavLink Href="/system">النظام</MudNavLink>
+            </MudNavGroup>
+        </MudNavMenu>
+
+        <div style="position: absolute; bottom: 20px; left: 16px; right: 16px;">
+            <MudCard Elevation="0" Style="background: rgba(212, 175, 55, 0.1); border: 1px solid var(--border-color);">
+                <MudCardContent Style="padding: 16px;">
+                    <MudText Typo="Typo.caption" Style="color: var(--primary-gold); font-weight: 600;">
+                        💎 النسخة الاحترافية
+                    </MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        v2.0.2026
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </div>
+    </MudDrawer>
+
+    <MudMainContent Style="background: var(--background-dark); min-height: 100vh;">
+        <MudContainer MaxWidth="MaxWidth.Large" Class="pa-4 fade-in">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>

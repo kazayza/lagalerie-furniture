@@ -1,0 +1,182 @@
+@page "/"
+@using MudBlazor
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>الرئيسية - Lagalerie Furniture</PageTitle>
+
+<MudText Typo="Typo.h5" Style="font-weight: 700; margin-bottom: 8px; color: var(--text-primary);">
+    👋 مرحباً بك، @_currentUsername
+</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-bottom: 32px;">
+    نظرة عامة على أداء النظام اليوم
+</MudText>
+
+@* Stats Cards *@
+<MudGrid Spacing="3" Class="mb-6">
+    <MudItem xs="12" sm="6" md="3">
+        <div class="dashboard-card fade-in" style="animation-delay: 0ms;">
+            <div class="dashboard-card-icon sales">
+                <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Large" />
+            </div>
+            <div class="dashboard-card-title">المبيعات اليوم</div>
+            <div class="dashboard-card-value">24,580 ج.م</div>
+            <div class="dashboard-card-trend trend-up">
+                <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Small" />
+                <span>+12.5% مقارنة بالأمس</span>
+            </div>
+        </div>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="3">
+        <div class="dashboard-card fade-in" style="animation-delay: 100ms;">
+            <div class="dashboard-card-icon inventory">
+                <MudIcon Icon="@Icons.Material.Filled.Warehouse" Size="Size.Large" />
+            </div>
+            <div class="dashboard-card-title">المنتجات بالمخزون</div>
+            <div class="dashboard-card-value">1,248</div>
+            <div class="dashboard-card-trend trend-up">
+                <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Small" />
+                <span>+3.2% هذا الأسبوع</span>
+            </div>
+        </div>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="3">
+        <div class="dashboard-card fade-in" style="animation-delay: 200ms;">
+            <div class="dashboard-card-icon production">
+                <MudIcon Icon="@Icons.Material.Filled.Factory" Size="Size.Large" />
+            </div>
+            <div class="dashboard-card-title">أوامر الإنتاج</div>
+            <div class="dashboard-card-value">18</div>
+            <div class="dashboard-card-trend trend-down">
+                <MudIcon Icon="@Icons.Material.Filled.TrendingDown" Size="Size.Small" />
+                <span>-2 قيد الانتظار</span>
+            </div>
+        </div>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="3">
+        <div class="dashboard-card fade-in" style="animation-delay: 300ms;">
+            <div class="dashboard-card-icon finance">
+                <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Size="Size.Large" />
+            </div>
+            <div class="dashboard-card-title">المستحقات</div>
+            <div class="dashboard-card-value">45,200 ج.م</div>
+            <div class="dashboard-card-trend trend-up">
+                <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Small" />
+                <span>+8.1% هذا الشهر</span>
+            </div>
+        </div>
+    </MudItem>
+</MudGrid>
+
+@* Quick Actions & Recent Activity *@
+<MudGrid Spacing="3">
+    <MudItem xs="12" md="8">
+        <MudCard Elevation="0" Class="fade-in" Style="background: var(--surface-dark); border: 1px solid var(--border-color);">
+            <MudCardContent>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <MudText Typo="Typo.h6" Style="font-weight: 700; color: var(--text-primary);">
+                        📊 آخر النشاطات
+                    </MudText>
+                    <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary">عرض الكل</MudButton>
+                </div>
+
+                <MudList T="string">
+                    <MudListItem T="string">
+                        <MudAvatar Color="Color.Success" Size="Size.Small">
+                            <MudIcon Icon="@Icons.Material.Filled.Check" />
+                        </MudAvatar>
+                        <div>
+                            <MudText Typo="Typo.body2" Style="color: var(--text-primary);">تم إتمام فاتورة #INV-2026-001</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">منذ 5 دقائق • أحمد محمد</MudText>
+                        </div>
+                    </MudListItem>
+                    <MudListItem T="string">
+                        <MudAvatar Color="Color.Warning" Size="Size.Small">
+                            <MudIcon Icon="@Icons.Material.Filled.Warning" />
+                        </MudAvatar>
+                        <div>
+                            <MudText Typo="Typo.body2" Style="color: var(--text-primary);">تنبيه: مخزون منخفض لمنتج SKU-1234</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">منذ 15 دقيقة • النظام</MudText>
+                        </div>
+                    </MudListItem>
+                    <MudListItem T="string">
+                        <MudAvatar Color="Color.Primary" Size="Size.Small">
+                            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" />
+                        </MudAvatar>
+                        <div>
+                            <MudText Typo="Typo.body2" Style="color: var(--text-primary);">تم إضافة عميل جديد: شركة النور</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">منذ 1 ساعة • سارة علي</MudText>
+                        </div>
+                    </MudListItem>
+                </MudList>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="0" Class="fade-in" Style="background: var(--surface-dark); border: 1px solid var(--border-color);">
+            <MudCardContent>
+                <MudText Typo="Typo.h6" Style="font-weight: 700; color: var(--text-primary); margin-bottom: 20px;">
+                    ⚡ إجراءات سريعة
+                </MudText>
+
+                <MudGrid Spacing="2">
+                    <MudItem xs="6">
+                        <MudButton Variant="Variant.Outlined" 
+                                   FullWidth="true" 
+                                   Color="Color.Primary"
+                                   Href="/invoices/create"
+                                   Style="border-color: var(--primary-gold); color: var(--primary-gold);">
+                            <MudIcon Icon="@Icons.Material.Filled.Receipt" Style="margin-left: 8px;" />
+                            فاتورة جديدة
+                        </MudButton>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudButton Variant="Variant.Outlined" 
+                                   FullWidth="true" 
+                                   Color="Color.Primary"
+                                   Href="/customers/create"
+                                   Style="border-color: var(--primary-gold); color: var(--primary-gold);">
+                            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Style="margin-left: 8px;" />
+                            عميل جديد
+                        </MudButton>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudButton Variant="Variant.Outlined" 
+                                   FullWidth="true" 
+                                   Color="Color.Primary"
+                                   Href="/inventory/create"
+                                   Style="border-color: var(--primary-gold); color: var(--primary-gold);">
+                            <MudIcon Icon="@Icons.Material.Filled.AddBox" Style="margin-left: 8px;" />
+                            منتج جديد
+                        </MudButton>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudButton Variant="Variant.Outlined" 
+                                   FullWidth="true" 
+                                   Color="Color.Primary"
+                                   Href="/production/create"
+                                   Style="border-color: var(--primary-gold); color: var(--primary-gold);">
+                            <MudIcon Icon="@Icons.Material.Filled.Build" Style="margin-left: 8px;" />
+                            أمر إنتاج
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private string _currentUsername = "مستخدم";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _currentUsername = user.Identity?.Name ?? "مستخدم";
+    }
+}

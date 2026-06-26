@@ -1,0 +1,592 @@
+/* ============================================================
+   Lagalerie Furniture - Premium Dashboard 2026
+   Dark Glassmorphism + Gold Theme
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;900&display=swap');
+
+/* ==================== Variables ==================== */
+:root {
+    --primary-gold: #d4af37;
+    --primary-gold-light: #f3d56b;
+    --primary-gold-dark: #aa8c2c;
+    --secondary-purple: #6C3CE1;
+    --bg-dark: #0b1120;
+    --bg-dark-light: #151e32;
+    --bg-glass: rgba(21, 30, 50, 0.6);
+    --bg-glass-hover: rgba(21, 30, 50, 0.8);
+    --border-glass: rgba(255, 255, 255, 0.08);
+    --border-gold: rgba(212, 175, 55, 0.2);
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --info: #3b82f6;
+}
+
+/* ==================== Global ==================== */
+html, body {
+    font-family: 'Cairo', sans-serif;
+    direction: rtl;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 0;
+}
+
+/* ==================== Glassmorphism Appbar ==================== */
+.glass-appbar {
+    background: var(--bg-glass) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-bottom: 1px solid var(--border-glass);
+    padding: 8px 16px !important;
+    height: 70px !important;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-right: 16px;
+}
+
+.logo-icon {
+    font-size: 28px;
+}
+
+.logo-text {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--primary-gold);
+}
+
+.search-field {
+    max-width: 400px;
+    margin: 0 16px;
+}
+
+.search-field .mud-input-outlined-border {
+    border-color: var(--border-glass) !important;
+    border-radius: 10px !important;
+}
+
+.notification-btn {
+    margin: 0 8px;
+}
+
+.user-menu {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.user-menu:hover {
+    background: rgba(212, 175, 55, 0.1);
+}
+
+.user-avatar {
+    border: 2px solid var(--primary-gold);
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.user-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.user-role {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+/* ==================== Glass Sidebar ==================== */
+.glass-sidebar {
+    background: var(--bg-glass) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-left: 1px solid var(--border-glass);
+    width: 280px !important;
+}
+
+.sidebar-header {
+    padding: 24px 20px;
+    border-bottom: 1px solid var(--border-glass);
+}
+
+.sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo-icon-large {
+    font-size: 36px;
+}
+
+.sidebar-brand {
+    display: block;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--primary-gold);
+}
+
+.sidebar-subtitle {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.sidebar-section {
+    padding: 16px 0;
+}
+
+.section-title {
+    display: block;
+    padding: 0 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+}
+
+.mud-nav-link {
+    border-radius: 10px !important;
+    margin: 4px 12px !important;
+    transition: all 0.3s ease;
+}
+
+.mud-nav-link:hover {
+    background: rgba(212, 175, 55, 0.1) !important;
+}
+
+.mud-nav-link.active {
+    background: rgba(212, 175, 55, 0.15) !important;
+    color: var(--primary-gold) !important;
+    font-weight: 600;
+}
+
+.mud-nav-link .mud-icon {
+    color: var(--text-secondary);
+}
+
+.mud-nav-link.active .mud-icon {
+    color: var(--primary-gold);
+}
+
+.sidebar-footer {
+    position: absolute;
+    bottom: 20px;
+    left: 16px;
+    right: 16px;
+}
+
+.version-card {
+    background: rgba(212, 175, 55, 0.1) !important;
+    border: 1px solid var(--border-gold) !important;
+    border-radius: 12px !important;
+}
+
+.version-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.version-badge {
+    background: var(--primary-gold);
+    color: #000;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+.version-text {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+/* ==================== Main Content ==================== */
+.main-content {
+    background: var(--bg-dark);
+    min-height: 100vh;
+    padding: 24px;
+}
+
+.dashboard-container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* ==================== Welcome Section ==================== */
+.welcome-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    padding: 24px;
+    background: var(--bg-glass);
+    border: 1px solid var(--border-glass);
+    border-radius: 16px;
+}
+
+.welcome-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 8px 0;
+}
+
+.welcome-subtitle {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.quick-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.action-btn {
+    border-radius: 10px !important;
+}
+
+/* ==================== Stats Cards ==================== */
+.stats-grid {
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: var(--bg-glass);
+    border: 1px solid var(--border-glass);
+    border-radius: 16px;
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.stat-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--primary-gold);
+    box-shadow: 0 12px 40px rgba(212, 175, 55, 0.15);
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+}
+
+.stat-sales .stat-icon { background: linear-gradient(135deg, #d4af37, #aa8c2c); color: #000; }
+.stat-orders .stat-icon { background: linear-gradient(135deg, #6C3CE1, #8B5CF6); color: #fff; }
+.stat-production .stat-icon { background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; }
+.stat-revenue .stat-icon { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.stat-value {
+    display: block;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.stat-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.trend-up { color: var(--success); }
+.trend-down { color: var(--error); }
+
+/* ==================== Glass Cards ==================== */
+.glass-card {
+    background: var(--bg-glass) !important;
+    border: 1px solid var(--border-glass) !important;
+    border-radius: 16px !important;
+    transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+    border-color: var(--border-gold);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.card-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.card-subtitle {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin: 4px 0 0 0;
+}
+
+/* ==================== Chart Container ==================== */
+.chart-container {
+    height: 300px;
+    position: relative;
+}
+
+.chart-placeholder {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    gap: 12px;
+}
+
+/* ==================== Delivery List ==================== */
+.delivery-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.delivery-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+.delivery-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.delivery-time {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(212, 175, 55, 0.1);
+    border-radius: 10px;
+    border: 1px solid var(--border-gold);
+}
+
+.time {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--primary-gold);
+}
+
+.period {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+}
+
+.delivery-info {
+    flex: 1;
+}
+
+.delivery-title {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.delivery-client {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.delivery-status {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+}
+
+.status-pending {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.status-completed {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* ==================== Data Table ==================== */
+.table-container {
+    overflow-x: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th {
+    text-align: right;
+    padding: 12px 16px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-glass);
+}
+
+.data-table td {
+    padding: 16px;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-glass);
+}
+
+.data-table tr:hover td {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-success {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-info {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--info);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* ==================== Category Legend ==================== */
+.category-legend {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 4px;
+}
+
+/* ==================== Animations ==================== */
+.fade-in {
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==================== Responsive ==================== */
+@media (max-width: 1024px) {
+    .welcome-section {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+    
+    .quick-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+    
+    .glass-sidebar {
+        width: 240px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .user-info {
+        display: none;
+    }
+    
+    .stat-card {
+        padding: 16px;
+    }
+    
+    .stat-value {
+        font-size: 1.4rem;
+    }
+}
+
+/* ==================== Light Mode ==================== */
+.mud-theme-light {
+    --bg-dark: #f8fafc;
+    --bg-dark-light: #ffffff;
+    --bg-glass: rgba(255, 255, 255, 0.8);
+    --bg-glass-hover: rgba(255, 255, 255, 0.95);
+    --border-glass: rgba(0, 0, 0, 0.08);
+    --border-gold: rgba(212, 175, 55, 0.3);
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+}

@@ -1,0 +1,108 @@
+# ============================================================
+# .gitignore for .NET / Blazor / EF Core
+# ============================================================
+
+# ----- Build results -----
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# ----- Visual Studio -----
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# ----- JetBrains (Rider) -----
+.idea/
+*.sln.iml
+
+# ----- VS Code -----
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# ----- NuGet -----
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+# ----- Build outputs & temp -----
+*.dll
+*.pdb
+*.cache
+*.log
+*.tlog
+*.binlog
+
+# ----- Publish / Deploy -----
+publish/
+[Pp]ublish/
+*.[Pp]ublish.xml
+*.azurePubxml
+*.pubxml
+*.pubxml.user
+*.publishproj
+PublishProfiles/
+
+# ----- EF Core -----
+# Keep migration files (source code) but ignore tool artifacts
+*.dbmdl
+*.dbproj.schemaview
+*.ldf
+*.mdf
+
+# ----- Local database files (in case of local dev DB) -----
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ----- Secrets / Configuration (هام جداً: لا نرفع بيانات الاعتماد) -----
+appsettings.Development.json
+appsettings.*.Development.json
+secrets.json
+*.pfx
+*.key
+*.pem
+
+# NOTE: نرفع appsettings.json لكن بدون بيانات حساسة،
+# أو استخدم "dotnet user-secrets" / متغيرات البيئة في الإنتاج.
+
+# ----- OS files -----
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# ----- Logs / Temp -----
+*.tmp
+*.temp
+*.swp
+*~
+~$*
+
+# ----- Test results -----
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# ----- Backup files -----
+*.bak
+*.backup

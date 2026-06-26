@@ -1,0 +1,24 @@
+@page "/logout"
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>تسجيل الخروج</PageTitle>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // تسجيل الخروج من الخدمة
+            await AuthService.LogoutAsync();
+
+            // التوجيه لصفحة الدخول
+            Navigation.NavigateTo("/login", true);
+        }
+        catch
+        {
+            // في حالة حدوث خطأ، نوجه لصفحة الدخول على أي حال
+            Navigation.NavigateTo("/login", true);
+        }
+    }
+}

@@ -1,0 +1,10 @@
+﻿<Router AppAssembly="@typeof(Program).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(LagalerieFurniture.Components.Layout.MainLayout)" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(LagalerieFurniture.Components.Layout.MainLayout)">
+            <p>الصفحة غير موجودة</p>
+        </LayoutView>
+    </NotFound>
+</Router>
