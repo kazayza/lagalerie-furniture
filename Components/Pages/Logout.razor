@@ -1,24 +1,13 @@
 @page "/logout"
-@inject IAuthService AuthService
 @inject NavigationManager Navigation
 
 <PageTitle>تسجيل الخروج</PageTitle>
 
 @code {
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        try
-        {
-            // تسجيل الخروج من الخدمة
-            await AuthService.LogoutAsync();
-
-            // التوجيه لصفحة الدخول
-            Navigation.NavigateTo("/login", true);
-        }
-        catch
-        {
-            // في حالة حدوث خطأ، نوجه لصفحة الدخول على أي حال
-            Navigation.NavigateTo("/login", true);
-        }
+        // التنقل لـ endpoint اللي يمسح الـ cookie (HTTP request جديد)
+        // forceLoad = true عشان الـ circuit يتكسر ويتعمل جديد بدون auth
+        Navigation.NavigateTo("/api/auth/logout", forceLoad: true);
     }
 }

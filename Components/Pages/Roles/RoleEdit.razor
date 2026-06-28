@@ -1,0 +1,188 @@
+@page "/roles/new"
+@page "/roles/{Id:int}/edit"
+@using LagalerieFurniture.Models
+@using LagalerieFurniture.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IRoleService RoleService
+@inject IPermissionService PermissionService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>@(_isEdit ? "تعديل دور" : "دور جديد") - Lagalerie</PageTitle>
+
+<MudText Typo="Typo.h5" Style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">
+    @(_isEdit ? "🛡️ تعديل دور" : "➕ دور جديد")
+</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-bottom: 24px;">
+    بيانات الدور وصلاحياته على كل الموديولات
+</MudText>
+
+@if (_loading)
+{
+    <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" Class="d-block mx-auto my-8" />
+}
+else
+{
+    <MudPaper Elevation="0" Class="pa-6 mb-4" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px;">
+        <MudGrid Spacing="2">
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="_displayName" Label="الاسم المعروض" Required="true" Variant="Variant.Outlined" />
+            </MudItem>
+            @if (!_isEdit)
+            {
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_name" Label="المعرّف الفريد (Name)" Required="true" Variant="Variant.Outlined"
+                                  HelperText="حروف إنجليزية بدون مسافات، مثل: SalesManager" />
+                </MudItem>
+            }
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="_description" Label="الوصف" Variant="Variant.Outlined" />
+            </MudItem>
+            @if (_isEdit)
+            {
+                <MudItem xs="12">
+                    <MudSwitch @bind-Value="_isActive" Label="الدور نشط" Color="Color.Success" />
+                </MudItem>
+            }
+        </MudGrid>
+    </MudPaper>
+
+    @if (_isEdit)
+    {
+        <MudPaper Elevation="0" Class="pa-6 mb-4" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px;">
+            <div class="d-flex justify-space-between align-center mb-3">
+                <MudText Typo="Typo.h6" Style="font-weight: 700; color: var(--primary-gold);">
+                    🔐 مصفوفة الصلاحيات
+                </MudText>
+                <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="SelectAll">تحديد الكل</MudButton>
+                <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearAll">مسح الكل</MudButton>
+            </div>
+
+            @foreach (var moduleGroup in _matrixByModule)
+            {
+                <MudText Typo="Typo.subtitle2" Style="color: var(--text-primary); font-weight: 600;" Class="mt-4 mb-2">
+                    @moduleGroup.Key.DisplayName
+                </MudText>
+                <MudTable Items="@moduleGroup" Hover="true" Elevation="0" Dense="true" Style="background: transparent;">
+                    <HeaderContent>
+                        <MudTh>الصلاحية</MudTh>
+                        <MudTh>الفئة</MudTh>
+                        <MudTh Style="text-align: center;">الكود</MudTh>
+                        <MudTh Style="text-align: center;">ممنوحة</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="p">
+                        <MudTd><MudText Typo="Typo.body2">@p.DisplayName</MudText></MudTd>
+                        <MudTd><MudText Typo="Typo.caption" Color="Color.Secondary">@(p.Category ?? "—")</MudText></MudTd>
+                        <MudTd Style="text-align: center;"><MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-family: monospace;">@p.Code</MudText></MudTd>
+                        <MudTd Style="text-align: center;">
+                            <MudCheckBox @bind-Value="@_granted[p.Code]" Color="Color.Primary" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudPaper>
+    }
+
+    <div class="d-flex justify-end gap-2">
+        <MudButton Variant="Variant.Text" OnClick="@(() => Navigation.NavigateTo("/roles"))">إلغاء</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" StartIcon="@Icons.Material.Filled.Save">حفظ</MudButton>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private bool _isEdit => Id > 0;
+    private bool _loading = true;
+
+    private string _displayName = string.Empty;
+    private string _name = string.Empty;
+    private string? _description;
+    private bool _isActive = true;
+
+    private List<Permission> _allPerms = new();
+    private IGrouping<Module, Permission>[] _matrixByModule = Array.Empty<IGrouping<Module, Permission>>();
+    private Dictionary<string, bool> _granted = new(StringComparer.OrdinalIgnoreCase);
+    private int _currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUserId = state.User.GetUserId() ?? 0;
+
+        if (_isEdit)
+        {
+            var details = await RoleService.GetDetailsAsync(Id);
+            if (details == null) { Snackbar.Add("الدور غير موجود", Severity.Error); Navigation.NavigateTo("/roles"); return; }
+            _displayName = details.DisplayName;
+            _name = details.Name;
+            _description = details.Description;
+            _isActive = details.IsActive;
+        }
+
+        // تحضير الـ matrix
+        _allPerms = await PermissionService.GetAllPermissionsAsync();
+        _matrixByModule = _allPerms.GroupBy(p => p.Module).ToArray();
+
+        if (_isEdit)
+        {
+            var details = await RoleService.GetDetailsAsync(Id);
+            foreach (var p in _allPerms)
+                _granted[p.Code] = details!.GrantedPermissionCodes.Contains(p.Code);
+        }
+        else
+        {
+            foreach (var p in _allPerms) _granted[p.Code] = false;
+        }
+
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_displayName))
+        {
+            Snackbar.Add("الاسم المعروض مطلوب", Severity.Warning);
+            return;
+        }
+
+        if (_isEdit)
+        {
+            var (ok, err) = await RoleService.UpdateAsync(new UpdateRoleDto
+            {
+                Id = Id, DisplayName = _displayName, Description = _description, IsActive = _isActive
+            }, _currentUserId);
+            if (!ok) { Snackbar.Add(err ?? "فشل", Severity.Error); return; }
+
+            var codes = _granted.Where(kv => kv.Value).Select(kv => kv.Key).ToHashSet();
+            var (ok2, err2) = await RoleService.SetPermissionsAsync(Id, codes, _currentUserId);
+            if (ok2) { Snackbar.Add("تم حفظ الدور وصلاحياته", Severity.Success); Navigation.NavigateTo("/roles"); }
+            else Snackbar.Add(err2 ?? "فشل حفظ الصلاحيات", Severity.Error);
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(_name))
+            {
+                Snackbar.Add("المعرّف الفريد مطلوب", Severity.Warning);
+                return;
+            }
+            var (ok, err, newId) = await RoleService.CreateAsync(new CreateRoleDto
+            {
+                Name = _name.Trim(), DisplayName = _displayName.Trim(), Description = _description
+            }, _currentUserId);
+            if (!ok) { Snackbar.Add(err ?? "فشل", Severity.Error); return; }
+            Snackbar.Add("تم إنشاء الدور. وجّه لتعديل الصلاحيات.", Severity.Success);
+            Navigation.NavigateTo($"/roles/{newId}/edit");
+        }
+    }
+
+    private void SelectAll()
+    {
+        foreach (var p in _allPerms) _granted[p.Code] = true;
+    }
+    private void ClearAll()
+    {
+        foreach (var p in _allPerms) _granted[p.Code] = false;
+    }
+}

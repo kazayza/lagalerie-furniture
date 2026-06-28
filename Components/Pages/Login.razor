@@ -3,6 +3,7 @@
 @using LagalerieFurniture.Services
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject HttpClient HttpClient
 
 <PageTitle>تسجيل الدخول - Lagalerie Furniture</PageTitle>
 
@@ -622,7 +623,7 @@
         _passwordInputType = _passwordInputType == "password" ? "text" : "password";
     }
 
-    private async Task OnLoginAsync()
+        private async Task OnLoginAsync()
     {
         if (_isLoading) return;
 
@@ -637,18 +638,36 @@
 
         try
         {
+            // الخطوة 1: التحقق من الباسورد (validation فقط — مفيش cookie هنا)
             var (success, errorMessage, username, role) = await AuthService.LoginAsync(_username, _password);
 
-            if (success)
-            {
-                // forceLoad: true ضروري لإعادة تهيئة الـ circuit بعد إصدار الـ cookie
-                // عشان يقرأ حالة المصادقة الجديدة من الـ HTTP request
-                Navigation.NavigateTo("/", true);
-            }
-            else
+            if (!success)
             {
                 _errorMessage = errorMessage ?? "اسم المستخدم أو كلمة المرور غير صحيحة";
+                return;
             }
+
+            // الخطوة 2: طلب token مؤقت من الـ API
+            // ---> التعديل هنا: نضيف BaseUri ليصبح الرابط كاملاً (Absolute URI)
+            var absoluteTokenUrl = $"{Navigation.BaseUri}api/auth/token";
+            var tokenResponse = await HttpClient.PostAsJsonAsync(absoluteTokenUrl, new { Username = username, Role = role });
+
+            if (!tokenResponse.IsSuccessStatusCode)
+            {
+                _errorMessage = "حدث خطأ أثناء إعداد الجلسة، حاول مرة أخرى";
+                return;
+            }
+
+            var tokenResult = await tokenResponse.Content.ReadFromJsonAsync<TokenResponse>();
+            if (tokenResult?.Token == null)
+            {
+                _errorMessage = "حدث خطأ أثناء إعداد الجلسة";
+                return;
+            }
+
+            // الخطوة 3: التنقل لـ endpoint اللي بيصدر الـ cookie (HTTP request جديد)
+            // forceLoad: true = الـ Blazor circuit بيتكسر ويتعمل جديد يقرأ الـ cookie
+            Navigation.NavigateTo($"/api/auth/login?token={tokenResult.Token}", forceLoad: true);
         }
         catch (Exception ex)
         {
@@ -659,6 +678,8 @@
             _isLoading = false;
         }
     }
+
+    private record TokenResponse(string Token);
 
     public void Dispose()
     {

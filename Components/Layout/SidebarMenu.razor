@@ -1,0 +1,169 @@
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Routing
+@inject IMenuService MenuService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<div class="sidebar-wrapper @(IsMiniMode ? "sidebar-mini" : "")">
+
+    <div class="sidebar-header">
+        <div class="sidebar-logo-area">
+            <div class="logo-icon-container">
+                <span class="logo-icon-emoji">🪑</span>
+            </div>
+            @if (!IsMiniMode)
+            {
+                <div class="logo-text-area">
+                    <span class="logo-title">Lagalerie</span>
+                    <span class="logo-subtitle">نظام الإدارة المتكامل</span>
+                </div>
+            }
+        </div>
+        <button class="sidebar-collapse-btn" @onclick="ToggleMiniMode" title="@(IsMiniMode ? "توسيع" : "تصغير")">
+            <MudIcon Icon="@(IsMiniMode ? Icons.Material.Filled.ChevronLeft : Icons.Material.Filled.ChevronRight)" Size="Size.Small" />
+        </button>
+    </div>
+
+    @if (!IsMiniMode)
+    {
+        <div class="sidebar-search">
+            <div class="sidebar-search-box">
+                <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" Class="sidebar-search-icon" />
+                <input type="text" class="sidebar-search-input" placeholder="ابحث في القائمة..." @bind="_searchTerm" @bind:event="oninput" />
+            </div>
+        </div>
+    }
+
+    <div class="sidebar-nav-container">
+        <MudNavMenu Class="sidebar-nav-menu">
+            @foreach (var group in _filteredGroups)
+            {
+                @if (IsMiniMode)
+                {
+                    <div class="mini-nav-item" title="@group.DisplayName">
+                        <MudNavLink Href="@GetFirstGroupLink(group)"
+                                    Match="NavLinkMatch.Prefix"
+                                    Icon="@group.Icon"
+                                    Class="mini-nav-link">
+                        </MudNavLink>
+                    </div>
+                }
+                else
+                {
+                    <MudNavGroup Title="@group.DisplayName"
+                                 Icon="@group.Icon"
+                                 Expanded="@(group.IsExpanded || IsGroupActive(group))"
+                                 Class="sidebar-nav-group">
+                        @foreach (var item in group.Items)
+                        {
+                            <MudNavLink Href="@item.Href"
+                                        Match="NavLinkMatch.Prefix"
+                                        Class="sidebar-nav-link"
+                                        Icon="@item.Icon">
+                                <span class="nav-link-content">
+                                    <span class="nav-link-label">@item.Label</span>
+                                    @if (!string.IsNullOrEmpty(item.Badge))
+                                    {
+                                        <span class="nav-link-badge @(item.BadgeColor ?? "badge-primary")">@item.Badge</span>
+                                    }
+                                </span>
+                            </MudNavLink>
+                        }
+                    </MudNavGroup>
+                }
+            }
+        </MudNavMenu>
+    </div>
+
+    @if (!IsMiniMode)
+    {
+        <div class="sidebar-footer">
+            <div class="sidebar-footer-card">
+                <div class="sidebar-footer-icon">💎</div>
+                <div class="sidebar-footer-text">
+                    <span class="sidebar-footer-title">النسخة الاحترافية</span>
+                    <span class="sidebar-footer-version">v2.0.2026</span>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<NavMenuGroup> _menuGroups = new();
+    private string _searchTerm = string.Empty;
+    private List<NavMenuGroup> _filteredGroups => string.IsNullOrWhiteSpace(_searchTerm)
+        ? _menuGroups
+        : _menuGroups
+            .Select(g => new NavMenuGroup
+            {
+                Id = g.Id, Name = g.Name, DisplayName = g.DisplayName,
+                Icon = g.Icon, SortOrder = g.SortOrder, IsExpanded = true,
+                Items = g.Items.Where(i => i.Label.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase)).ToList()
+            })
+            .Where(g => g.Items.Count > 0)
+            .ToList();
+
+    [Parameter] public bool IsMiniMode { get; set; }
+    [Parameter] public EventCallback<bool> IsMiniModeChanged { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMenuAsync();
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadMenuAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var userId))
+            {
+                _menuGroups = await MenuService.GetUserMenuAsync(userId);
+            }
+            else
+            {
+                _menuGroups = await MenuService.GetUserMenuAsync(0);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"فشل تحميل القائمة: {ex.Message}");
+            _menuGroups = new List<NavMenuGroup>();
+        }
+    }
+
+    private bool IsGroupActive(NavMenuGroup group)
+    {
+        var currentUrl = Navigation.Uri;
+        return group.Items.Any(i => currentUrl.Contains(i.Href, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task ToggleMiniMode()
+    {
+        IsMiniMode = !IsMiniMode;
+        await MenuService.SetSidebarMiniModeAsync(IsMiniMode);
+        await IsMiniModeChanged.InvokeAsync(IsMiniMode);
+    }
+
+    private string GetFirstGroupLink(NavMenuGroup group)
+    {
+        var first = group.Items.FirstOrDefault();
+        return first?.Href ?? "/";
+    }
+}

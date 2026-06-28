@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    Lagalerie Furniture - Premium Dashboard 2026
    Dark Glassmorphism + Gold Theme
    ============================================================ */
@@ -579,7 +579,92 @@ html, body {
     }
 }
 
-/* ==================== Light Mode ==================== */
+
+.glass-drawer {
+    background: var(--bg-glass) !important;
+    backdrop-filter: blur(24px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+    border-left: none !important;
+    border-right: 1px solid var(--border-glass);
+    width: 280px !important;
+}
+.appbar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 100%;
+    padding: 0 8px;
+    gap: 8px;
+}
+.appbar-left { display: flex; align-items: center; gap: 12px; }
+.appbar-right { display: flex; align-items: center; gap: 8px; }
+.appbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 16px;
+    border-left: 1px solid var(--border-glass);
+}
+.appbar-brand-icon {
+    font-size: 24px;
+    animation: gentle-float 3s ease-in-out infinite;
+}
+.appbar-brand-text {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--primary-gold);
+}
+.breadcrumb-text {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+.user-menu-trigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 12px 4px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+.user-menu-trigger:hover {
+    background: rgba(212, 175, 55, 0.08);
+    border-color: var(--border-gold);
+}
+.logo-icon-container {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(212, 175, 55, 0.1);
+    border-radius: 12px;
+    border: 1px solid var(--border-gold);
+}
+.logo-icon-emoji {
+    font-size: 22px;
+    animation: gentle-float 3s ease-in-out infinite;
+}
+.logo-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--primary-gold);
+}
+.page-header {
+    padding: 24px 32px 8px;
+    border-bottom: 1px solid var(--border-glass);
+}
+
+@keyframes gentle-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+}
+@keyframes pulse-notification {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}/* ==================== Light Mode ==================== */
 .mud-theme-light {
     --bg-dark: #f8fafc;
     --bg-dark-light: #ffffff;

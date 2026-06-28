@@ -1,0 +1,40 @@
+@page "/settings"
+@using LagalerieFurniture.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "settings.view")]
+@inject ThemeService ThemeService
+@inject ISnackbar Snackbar
+
+<PageTitle>الإعدادات - Lagalerie</PageTitle>
+
+<MudText Typo="Typo.h5" Style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">⚙️ الإعدادات</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-bottom: 24px;">تخصيص النظام والتفضيلات</MudText>
+
+<MudPaper Elevation="0" Class="pa-6" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px; max-width: 700px;">
+    <MudText Typo="Typo.subtitle1" Style="color: var(--primary-gold); font-weight: 700;" Class="mb-4">🎨 المظهر</MudText>
+    <MudSwitch @bind-Value="_isDark" Color="Color.Primary" Label="@(_isDark ? "الوضع الليلي" : "الوضع النهاري")" OnChange="ToggleTheme" />
+</MudPaper>
+
+<MudPaper Elevation="0" Class="pa-6 mt-4" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px; max-width: 700px;">
+    <MudText Typo="Typo.subtitle1" Style="color: var(--primary-gold); font-weight: 700;" Class="mb-4">ℹ️ معلومات النظام</MudText>
+    <div class="d-flex flex-column gap-2">
+        <MudText Typo="Typo.body2">الإصدار: <strong>v2.0.2026</strong></MudText>
+        <MudText Typo="Typo.body2">النظام: Lagalerie Furniture ERP</MudText>
+        <MudText Typo="Typo.body2">التقنية: Blazor Server + MudBlazor + EF Core</MudText>
+    </div>
+</MudPaper>
+
+@code {
+    private bool _isDark = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isDark = await ThemeService.IsDarkModeAsync();
+    }
+
+    private async Task ToggleTheme()
+    {
+        await ThemeService.SetDarkModeAsync(_isDark);
+        Snackbar.Add("تم تحديث المظهر", Severity.Info);
+    }
+}

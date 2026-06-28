@@ -1,0 +1,134 @@
+@page "/roles"
+@using LagalerieFurniture.Models
+@using LagalerieFurniture.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components
+@attribute [Authorize(Policy = "roles.view")]
+@inject IRoleService RoleService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>الأدوار - Lagalerie</PageTitle>
+
+<MudText Typo="Typo.h5" Style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">
+    🛡️ إدارة الأدوار
+</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-bottom: 24px;">
+    الأدوار ومجموعات الصلاحيات الممنوحة لكل دور
+</MudText>
+
+<MudPaper Elevation="0" Class="pa-4 mb-4 d-flex justify-end" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px;">
+    @if (_currentUser.HasPermission("roles.create"))
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => Navigation.NavigateTo("/roles/new"))">
+            دور جديد
+        </MudButton>
+    }
+</MudPaper>
+
+<MudPaper Elevation="0" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
+    <MudTable Items="@_roles" Hover="true" Loading="_loading" Elevation="0">
+        <HeaderContent>
+            <MudTh>اسم الدور</MudTh>
+            <MudTh>الوصف</MudTh>
+            <MudTh>النوع</MudTh>
+            <MudTh>المستخدمون</MudTh>
+            <MudTh>الحالة</MudTh>
+            <MudTh Style="text-align: center;">إجراءات</MudTh>
+        </HeaderContent>
+        <RowTemplate Context="r">
+            <MudTd>
+                <MudText Typo="Typo.body2" Style="color: var(--text-primary); font-weight: 600;">@r.DisplayName</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@r.Name</MudText>
+            </MudTd>
+            <MudTd><MudText Typo="Typo.body2" Color="Color.Secondary">@(r.Description ?? "—")</MudText></MudTd>
+            <MudTd>
+                @if (r.IsSystem)
+                {
+                    <span class="status-chip system">نظام</span>
+                }
+                else
+                {
+                    <span class="status-chip custom">مخصّص</span>
+                }
+            </MudTd>
+            <MudTd><MudText Typo="Typo.body2">@GetUserCount(r.Id)</MudText></MudTd>
+            <MudTd>
+                <span class="status-chip @(r.IsActive ? "active" : "disabled")">@(r.IsActive ? "نشط" : "معطّل")</span>
+            </MudTd>
+            <MudTd Style="text-align: center;">
+                @if (_currentUser.HasPermission("roles.edit"))
+                {
+                    <MudTooltip Text="الصلاحيات">
+                        <MudIconButton Icon="@Icons.Material.Filled.Security" OnClick="@(() => Navigation.NavigateTo($"/roles/{r.Id}/edit"))" />
+                    </MudTooltip>
+                }
+                @if (_currentUser.HasPermission("roles.delete") && !r.IsSystem)
+                {
+                    <MudTooltip Text="حذف">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => Delete(r))" />
+                    </MudTooltip>
+                }
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private ClaimsPrincipal _currentUser = new();
+    private int _currentUserId;
+    private List<Role> _roles = new();
+    private bool _loading = true;
+    private readonly Dictionary<int, int> _userCountMap = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUser = state.User;
+        _currentUserId = _currentUser.GetUserId() ?? 0;
+
+        _loading = true;
+        try
+        {
+            _roles = await RoleService.GetAllAsync();
+            // حمّل عدّاد المستخدمين لكل دور
+            foreach (var r in _roles)
+            {
+                var details = await RoleService.GetDetailsAsync(r.Id);
+                _userCountMap[r.Id] = details?.UsersCount ?? 0;
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private int GetUserCount(int roleId) => _userCountMap.GetValueOrDefault(roleId);
+
+    private async Task Delete(Role r)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Message"] = $"هل تريد حذف الدور «{r.DisplayName}»؟",
+            ["YesText"] = "حذف",
+            ["NoText"] = "إلغاء"
+        };
+        var dialog = await DialogService.ShowAsync<LagalerieFurniture.Components.Shared.ConfirmDialog>("تأكيد الحذف", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled ?? true) return;
+
+        var (success, err) = await RoleService.DeleteAsync(r.Id, _currentUserId);
+        if (success)
+        {
+            Snackbar.Add("تم الحذف", Severity.Success);
+            _userCountMap.Remove(r.Id);
+            _roles.RemoveAll(x => x.Id == r.Id);
+            StateHasChanged();
+        }
+        else Snackbar.Add(err ?? "فشل", Severity.Error);
+    }
+}

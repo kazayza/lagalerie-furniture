@@ -1,0 +1,256 @@
+@page "/users"
+@using LagalerieFurniture.Models
+@using LagalerieFurniture.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize(Policy = "users.view")]
+@inject IUserService UserService
+@inject IRoleService RoleService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>المستخدمون - Lagalerie</PageTitle>
+
+<MudText Typo="Typo.h5" Style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">
+    👥 إدارة المستخدمين
+</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-bottom: 24px;">
+    عرض وإدارة حسابات المستخدمين وصلاحياتهم
+</MudText>
+
+<MudPaper Elevation="0" Class="pa-4 mb-4" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px;">
+    <MudGrid Spacing="2" AlignItems="AlignItems.Center">
+        <MudItem xs="12" md="5">
+            <MudTextField @bind-Value="_search" Label="بحث" Placeholder="اسم المستخدم، الإيميل، الاسم..."
+                          Variant="Variant.Outlined" Size="Size.Small" Adornment="Adornment.Start"
+                          Immediate="true" OnAdornmentClick="Search" OnKeyUp="OnSearchKeyUp">
+                <MudIcon Icon="@Icons.Material.Filled.Search" />
+            </MudTextField>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudSelect @bind-Value="_roleIdFilter" Label="الدور" Variant="Variant.Outlined" Size="Size.Small" Clearable="true">
+                @foreach (var role in _roles)
+                {
+                    <MudSelectItem Value="@role.Id">@role.DisplayName</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudSelect @bind-Value="_activeFilter" Label="الحالة" Variant="Variant.Outlined" Size="Size.Small" Clearable="true">
+                <MudSelectItem Value="@true">نشط</MudSelectItem>
+                <MudSelectItem Value="@false">معطّل</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="2" Class="d-flex justify-end">
+            @if (_currentUser.HasPermission("users.create"))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreate" StartIcon="@Icons.Material.Filled.PersonAdd">
+                    مستخدم جديد
+                </MudButton>
+            }
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="0" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
+    <MudTable Items="@_result.Items" Hover="true" Loading="_loading" Elevation="0">
+        <HeaderContent>
+            <MudTh>المستخدم</MudTh>
+            <MudTh>البريد الإلكتروني</MudTh>
+            <MudTh>الدور</MudTh>
+            <MudTh>الحالة</MudTh>
+            <MudTh>آخر دخول</MudTh>
+            <MudTh Style="text-align: center;">إجراءات</MudTh>
+        </HeaderContent>
+        <RowTemplate Context="u">
+            <MudTd>
+                <div class="d-flex align-center gap-2">
+                    <MudAvatar Image="@u.AvatarUrl" Color="Color.Primary" Size="Size.Small">
+                        @u.DisplayName[..1]
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.body2" Style="color: var(--text-primary); font-weight: 600;">@u.DisplayName</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@u.Username</MudText>
+                    </div>
+                </div>
+            </MudTd>
+            <MudTd><MudText Typo="Typo.body2">@u.Email</MudText></MudTd>
+            <MudTd>
+                <span class="status-chip role">@u.RoleDisplayName</span>
+            </MudTd>
+            <MudTd>
+                @if (!u.IsActive)
+                {
+                    <span class="status-chip disabled">معطّل</span>
+                }
+                else if (u.IsLocked)
+                {
+                    <span class="status-chip locked">مقفل</span>
+                }
+                else
+                {
+                    <span class="status-chip active">نشط</span>
+                }
+            </MudTd>
+            <MudTd>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @(u.LastLoginAt.HasValue ? u.LastLoginAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "—")
+                </MudText>
+            </MudTd>
+            <MudTd Style="text-align: center;">
+                <MudMenu>
+                    <ActivatorContent>
+                        <MudIconButton Icon="@Icons.Material.Filled.MoreVert" />
+                    </ActivatorContent>
+                    <ChildContent>
+                        @if (_currentUser.HasPermission("users.edit"))
+                        {
+                            <MudMenuItem OnClick="@(() => Edit(u))" Icon="@Icons.Material.Filled.Edit">تعديل</MudMenuItem>
+                        }
+                        @if (_currentUser.HasPermission("users.permissions"))
+                        {
+                            <MudMenuItem Href="@($"/users/{u.Id}/permissions")" Icon="@Icons.Material.Filled.Lock">الصلاحيات</MudMenuItem>
+                        }
+                        @if (_currentUser.HasPermission("users.edit"))
+                        {
+                            <MudMenuItem OnClick="@(() => ToggleActive(u))" Icon="@Icons.Material.Filled.PowerSettingsNew">
+                                @(u.IsActive ? "تعطيل" : "تفعيل")
+                            </MudMenuItem>
+                            @if (u.IsLocked)
+                            {
+                                <MudMenuItem OnClick="@(() => Unlock(u))" Icon="@Icons.Material.Filled.LockOpen">فك القفل</MudMenuItem>
+                            }
+                            <MudMenuItem OnClick="@(() => ResetPassword(u))" Icon="@Icons.Material.Filled.Key">إعادة تعيين كلمة المرور</MudMenuItem>
+                        }
+                        @if (_currentUser.HasPermission("users.delete"))
+                        {
+                            <MudMenuItem Divider="true" />
+                            <MudMenuItem OnClick="@(() => Delete(u))" Icon="@Icons.Material.Filled.Delete" Color="Color.Error">حذف</MudMenuItem>
+                        }
+                    </ChildContent>
+                </MudMenu>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <div class="pa-8 text-center">
+                <MudIcon Icon="@Icons.Material.Filled.PersonOff" Size="Size.Large" Color="Color.Default" />
+                <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-2">لا يوجد مستخدمون مطابقون</MudText>
+            </div>
+        </NoRecordsContent>
+    </MudTable>
+
+    @if (_result.TotalCount > 0)
+    {
+        <MudPagination Count="@_result.TotalPages" Selected="@_selectedPage" OnSelected="OnPageChanged" Class="pa-4 justify-center" />
+    }
+</MudPaper>
+
+@code {
+    private ClaimsPrincipal _currentUser = new();
+    private int _currentUserId;
+
+    private string _search = string.Empty;
+    private int? _roleIdFilter;
+    private bool? _activeFilter;
+
+    private PagedResult<UserListItemDto> _result = new();
+    private List<Role> _roles = new();
+    private bool _loading = true;
+    private int _selectedPage = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUser = state.User;
+        _currentUserId = _currentUser.GetUserId() ?? 0;
+        _roles = await RoleService.GetAllAsync();
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _result = await UserService.GetUsersAsync(new UserFilter
+            {
+                Search = string.IsNullOrWhiteSpace(_search) ? null : _search,
+                RoleId = _roleIdFilter,
+                IsActive = _activeFilter,
+                Page = _result.Page,
+                PageSize = 20
+            });
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("حدث خطأ أثناء تحميل البيانات", Severity.Error);
+            Console.WriteLine(ex);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task Search() { _selectedPage = 1; _result.Page = 1; await LoadData(); }
+    private async Task OnSearchKeyUp(KeyboardEventArgs e) { if (e.Key == "Enter") await Search(); }
+    private async Task OnPageChanged(int page) { _selectedPage = page; _result.Page = page; await LoadData(); }
+
+    private void OpenCreate() => Navigation.NavigateTo("/users/new");
+    private void Edit(UserListItemDto u) => Navigation.NavigateTo($"/users/{u.Id}/edit");
+
+    private async Task ToggleActive(UserListItemDto u)
+    {
+        var (ok, err) = await UserService.ToggleActiveAsync(u.Id, _currentUserId);
+        if (ok) { Snackbar.Add("تم تحديث الحالة", Severity.Success); await LoadData(); }
+        else Snackbar.Add(err ?? "فشل", Severity.Error);
+    }
+
+    private async Task Unlock(UserListItemDto u)
+    {
+        var (ok, err) = await UserService.UnlockAsync(u.Id, _currentUserId);
+        if (ok) { Snackbar.Add("تم فك القفل", Severity.Success); await LoadData(); }
+        else Snackbar.Add(err ?? "فشل", Severity.Error);
+    }
+
+    private async Task Delete(UserListItemDto u)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Message"] = $"هل تريد حذف المستخدم «{u.DisplayName}»؟ هذا الإجراء يمكن التراجع عنه.",
+            ["YesText"] = "حذف",
+            ["NoText"] = "إلغاء"
+        };
+        var dialog = await DialogService.ShowAsync<LagalerieFurniture.Components.Shared.ConfirmDialog>("تأكيد الحذف", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled ?? true) return;
+        var (success, err) = await UserService.DeleteAsync(u.Id, _currentUserId);
+        if (success) { Snackbar.Add("تم الحذف", Severity.Success); await LoadData(); }
+        else Snackbar.Add(err ?? "فشل", Severity.Error);
+    }
+
+    private async Task ResetPassword(UserListItemDto u)
+    {
+        var parameters = new DialogParameters { ["UserId"] = u.Id, ["DisplayName"] = u.DisplayName };
+        var dialog = await DialogService.ShowAsync<ResetPasswordDialog>($"إعادة تعيين كلمة المرور - {u.DisplayName}", parameters);
+        var result = await dialog.Result;
+        if (!(result?.Canceled ?? true))
+        {
+            var password = (string?)result?.Data;
+            if (!string.IsNullOrEmpty(password))
+            {
+                var (ok, err) = await UserService.ResetPasswordAsync(u.Id, password, _currentUserId);
+                if (ok) Snackbar.Add("تمت إعادة التعيين. سيُطلب من المستخدم تغييرها عند الدخول.", Severity.Success);
+                else Snackbar.Add(err ?? "فشل", Severity.Error);
+            }
+        }
+    }
+
+    // محاكاة useEffect على الفلاتر: نعيد التحميل عند تغيرها
+    protected override async Task OnParametersSetAsync()
+    {
+        // لا شيء — الفلاتر يتم تطبيقها عبر الأزرار
+    }
+}

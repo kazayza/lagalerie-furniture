@@ -1,6 +1,10 @@
+using System.Security.Claims;
 using LagalerieFurniture.Components;
 using LagalerieFurniture.Data;
+using LagalerieFurniture.Models;
 using LagalerieFurniture.Services;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
@@ -20,6 +24,9 @@ if (args.Length > 0 && args[0] == "migrate-passwords")
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// HttpClient for internal API calls (Login.razor → /api/auth/token)
+builder.Services.AddHttpClient();
+
 // Required for accessing HttpContext (client IP, cookie auth) inside services
 builder.Services.AddHttpContextAccessor();
 
@@ -37,7 +44,11 @@ builder.Services.AddAuthentication("LagalerieCookie")
         options.LogoutPath = "/logout";
         options.AccessDeniedPath = "/access-denied";
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // الـ PermissionPolicyProvider يوفّر policies لأي كود صلاحية تلقائياً
+    options.AddPolicy("Admin", policy => policy.RequireRole("Admin"));
+});
 
 // Database - with retry on failure for remote connections
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -127,6 +138,17 @@ builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 
 // Theme Service (for saving user preferences)
 builder.Services.AddScoped<ThemeService>();
+builder.Services.AddScoped<IMenuService, MenuService>();
+
+// Permission Services
+builder.Services.AddScoped<IPermissionService, PermissionService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IRoleService, RoleService>();
+builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
+
+// Authorization policy provider + handler (dynamic permission policies)
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+builder.Services.AddScoped<PermissionAuthorizationHandler>();
 
 var app = builder.Build();
 
@@ -145,5 +167,111 @@ app.UseAntiforgery();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// ============================================================
+// Auth API Endpoints — Minimal API
+// ============================================================
+// لما الـ Blazor component يحتاج يعمل SignIn/SignOut:
+// مينفعش يستخدم HttpContext.SignInAsync مباشرة (headers read-only
+// بعد ما الـ WebSocket circuit يبدأ). فنعمل HTTP request جديد.
+//
+// الـ flow:
+//   1. Login.razor يتأكد من الباسورد عبر AuthService.LoginAsync()
+//   2. Login.razor ينشئ token مؤقت وينقّل لـ /api/auth/login
+//   3. الـ endpoint يصدر cookie حقيقية ويرجّع لـ /
+// ============================================================
+
+// مخزّن مؤقت للـ tokens (in-memory, scoped للـ app lifetime)
+// الـ token بيكون: username + timestamp + عشوائي — صالح 30 ثانية
+var loginTokens = new Dictionary<string, (string Username, string Role, DateTime Expires)>();
+
+// POST /api/auth/login?token=xxx
+// يصدر الـ authentication cookie
+app.MapGet("/api/auth/login", async (
+    string token,
+    HttpContext context,
+    ApplicationDbContext db,
+    IPasswordHasher passwordHasher,
+    IPermissionService permissionService,
+    ILogger<Program> logger) =>
+{
+    // تحقق من صلاحية الـ token
+    if (!loginTokens.TryGetValue(token, out var tokenData))
+    {
+        logger.LogWarning("login endpoint: token غير صالح");
+        return Results.Redirect("/login");
+    }
+
+    if (tokenData.Expires < DateTime.UtcNow)
+    {
+        loginTokens.Remove(token);
+        logger.LogWarning("login endpoint: token منتهي الصلاحية");
+        return Results.Redirect("/login");
+    }
+
+    loginTokens.Remove(token);
+
+    // جلب المستخدم من الـ DB
+    var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Username == tokenData.Username);
+    if (user == null)
+    {
+        logger.LogError("login endpoint: المستخدم {Username} مش موجود", tokenData.Username);
+        return Results.Redirect("/login");
+    }
+
+    // حساب الصلاحيات الفعّالة (Role + User overrides)
+    var permissionCodes = await permissionService.GetEffectivePermissionCodesAsync(user.Id);
+
+    // إصدار cookie
+    var claims = new List<Claim>
+    {
+        new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+        new(ClaimTypes.Name, user.Username),
+        new(ClaimTypes.Email, user.Email),
+        new(ClaimTypes.GivenName, user.DisplayName),
+        new(ClaimTypes.Role, tokenData.Role),
+    };
+
+    // إضافة كل أكواد الصلاحيات كـ claims مستقلة (للـ AuthorizeView و policy provider)
+    foreach (var code in permissionCodes)
+    {
+        claims.Add(new Claim("permission", code));
+    }
+
+    var identity = new ClaimsIdentity(claims, "LagalerieCookie");
+    var principal = new ClaimsPrincipal(identity);
+
+    await context.SignInAsync("LagalerieCookie", principal, new AuthenticationProperties
+    {
+        IsPersistent = true,
+        ExpiresUtc = DateTimeOffset.UtcNow.AddDays(7),
+        AllowRefresh = true
+    });
+
+    logger.LogInformation("تم إصدار cookie للمستخدم: {Username}", tokenData.Username);
+    return Results.Redirect("/");
+});
+
+// GET /api/auth/logout
+// يمسح الـ cookie ويرجّع لصفحة الدخول
+app.MapGet("/api/auth/logout", async (HttpContext context) =>
+{
+    await context.SignOutAsync("LagalerieCookie");
+    return Results.Redirect("/login");
+}).RequireAuthorization();
+
+// POST /api/auth/token — ينشئ token مؤقت للاستخدام في الـ redirect
+// بيتستدعى من الـ Login.razor بعد نجاح التحقق
+app.MapPost("/api/auth/token", (LoginTokenRequest request, ILogger<Program> logger) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Username))
+        return Results.BadRequest(new { error = "اسم المستخدم مطلوب" });
+
+    var token = Convert.ToBase64String(Guid.NewGuid().ToByteArray())[..16]; // 16 حرف عشوائي
+    loginTokens[token] = (request.Username, request.Role ?? "User", DateTime.UtcNow.AddSeconds(30));
+
+    logger.LogDebug("تم إنشاء login token للمستخدم: {Username}", request.Username);
+    return Results.Ok(new { token });
+});
 
 app.Run();

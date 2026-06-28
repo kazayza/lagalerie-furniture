@@ -1,0 +1,118 @@
+@page "/profile"
+@using LagalerieFurniture.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IUserService UserService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>الملف الشخصي - Lagalerie</PageTitle>
+
+<MudText Typo="Typo.h5" Style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">👤 الملف الشخصي</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-bottom: 24px;">بيانات حسابك وتغيير كلمة المرور</MudText>
+
+@if (_user != null)
+{
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="0" Class="pa-6" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px;">
+                <div class="d-flex align-center gap-4 mb-4">
+                    <MudAvatar Image="@_user.AvatarUrl" Color="Color.Primary" Size="Size.Large">
+                        @(_user.DisplayName.Length > 0 ? _user.DisplayName[..1] : "?")
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.h6" Style="color: var(--text-primary); font-weight: 700;">@_user.DisplayName</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@_user.Username • @_user.Email</MudText>
+                    </div>
+                </div>
+
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_firstName" Label="الاسم الأول" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_lastName" Label="اسم العائلة" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_phone" Label="رقم الهاتف" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_email" Label="البريد الإلكتروني" Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+                <div class="d-flex justify-end mt-4">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveProfile" StartIcon="@Icons.Material.Filled.Save">حفظ البيانات</MudButton>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="0" Class="pa-6" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px;">
+                <MudText Typo="Typo.h6" Style="color: var(--primary-gold); font-weight: 700;" Class="mb-4">🔑 تغيير كلمة المرور</MudText>
+                <MudTextField @bind-Value="_currentPassword" Label="كلمة المرور الحالية" InputType="InputType.Password" Variant="Variant.Outlined" Class="mb-2" />
+                <MudTextField @bind-Value="_newPassword" Label="كلمة المرور الجديدة" InputType="InputType.Password" Variant="Variant.Outlined" Class="mb-2" Immediate="true" Validation="@ValidateNewPass" />
+                <MudTextField @bind-Value="_confirmPassword" Label="تأكيد كلمة المرور" InputType="InputType.Password" Variant="Variant.Outlined" Class="mb-2" Immediate="true" Validation="@ValidateConfirm" />
+                <div class="d-flex justify-end mt-4">
+                    <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="ChangePassword" StartIcon="@Icons.Material.Filled.Key" Disabled="@(_newPassword.Length < 6 || _newPassword != _confirmPassword)">
+                        تغيير
+                    </MudButton>
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private LagalerieFurniture.Models.User? _user;
+    private int _userId;
+
+    private string _firstName = string.Empty;
+    private string _lastName = string.Empty;
+    private string _phone = string.Empty;
+    private string _email = string.Empty;
+
+    private string _currentPassword = string.Empty;
+    private string _newPassword = string.Empty;
+    private string _confirmPassword = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userId = state.User.GetUserId() ?? 0;
+        _user = await UserService.GetByIdAsync(_userId);
+        if (_user != null)
+        {
+            _firstName = _user.FirstName;
+            _lastName = _user.LastName;
+            _phone = _user.Phone ?? string.Empty;
+            _email = _user.Email;
+        }
+    }
+
+    private async Task SaveProfile()
+    {
+        var (ok, err) = await UserService.UpdateAsync(new UpdateUserDto
+        {
+            Id = _userId, FirstName = _firstName, LastName = _lastName,
+            Phone = _phone, Email = _email, RoleId = _user!.RoleId,
+            DefaultBranchId = _user.DefaultBranchId
+        }, _userId);
+        if (ok) Snackbar.Add("تم حفظ البيانات", Severity.Success);
+        else Snackbar.Add(err ?? "فشل", Severity.Error);
+    }
+
+    private async Task ChangePassword()
+    {
+        var (ok, err) = await UserService.ChangeOwnPasswordAsync(_userId, _currentPassword, _newPassword);
+        if (ok)
+        {
+            Snackbar.Add("تم تغيير كلمة المرور", Severity.Success);
+            _currentPassword = _newPassword = _confirmPassword = string.Empty;
+        }
+        else Snackbar.Add(err ?? "فشل", Severity.Error);
+    }
+
+    private IEnumerable<string>? ValidateNewPass(string v)
+        => string.IsNullOrWhiteSpace(v) ? new[] { "مطلوبة" } : v.Length < 6 ? new[] { "6 أحرف على الأقل" } : null;
+    private IEnumerable<string>? ValidateConfirm(string v)
+        => v != _newPassword ? new[] { "غير مطابقة" } : null;
+}

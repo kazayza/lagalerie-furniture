@@ -1,0 +1,180 @@
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Routing
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ThemeService ThemeService
+@inject IMenuService MenuService
+
+<MudAppBar Elevation="0" Class="glass-appbar">
+    <div class="appbar-inner">
+        @* القسم الأيسر: Menu Toggle + Logo + Breadcrumbs *@
+        <div class="appbar-left">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" 
+                          OnClick="ToggleDrawer" 
+                          Color="Color.Inherit" 
+                          Class="appbar-menu-btn" />
+            
+            <div class="appbar-brand">
+                <span class="appbar-brand-icon">🪑</span>
+                <span class="appbar-brand-text">Lagalerie</span>
+            </div>
+
+            <div class="appbar-breadcrumbs">
+                <MudText Typo="Typo.body2" Class="breadcrumb-text">@GetBreadcrumbText()</MudText>
+            </div>
+        </div>
+
+        @* القسم الأيمن: بحث + إشعارات + ثيم + مستخدم *@
+        <div class="appbar-right">
+            @* البحث *@
+            <div class="appbar-search-wrapper">
+                <MudTextField @bind-Value="_searchQuery"
+                             Placeholder="بحث سريع..."
+                             Variant="Variant.Outlined"
+                             Size="Size.Small"
+                             Class="appbar-search"
+                             InputType="InputType.Search"
+                             AdornmentIcon="@Icons.Material.Filled.Search"
+                             Adornment="Adornment.Start" />
+            </div>
+
+            @* الإشعارات *@
+            <div class="appbar-action-item notification-btn-wrapper" @onclick="() => {}">
+                <MudIconButton Icon="@Icons.Material.Filled.Notifications" 
+                              Color="Color.Inherit" 
+                              Class="appbar-icon-btn" />
+                @if (_notificationCount > 0)
+                {
+                    <span class="notification-pulse"></span>
+                    <span class="notification-badge">@_notificationCount</span>
+                }
+            </div>
+
+            @* تبديل الثيم *@
+            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                          OnClick="ToggleTheme"
+                          Color="Color.Inherit"
+                          Class="appbar-icon-btn theme-toggle-btn" />
+
+            @* المستخدم *@
+            <MudMenu Class="user-menu-wrapper" 
+                     Direction="Direction.Right"
+                     OffsetY="true"
+                     FullWidth="false">
+                <ActivatorContent>
+                    <div class="user-menu-trigger">
+                        <div class="user-avatar-wrapper">
+                            <MudAvatar Class="user-avatar" Size="Size.Small">
+                                @_currentUsername[..1]
+                            </MudAvatar>
+                            <div class="user-status-dot"></div>
+                        </div>
+                        <div class="user-info-text">
+                            <span class="user-display-name">@_currentUsername</span>
+                            <span class="user-role-badge">@_userRole</span>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="user-dropdown-icon" />
+                    </div>
+                </ActivatorContent>
+                <ChildContent>
+                    <div class="user-menu-header">
+                        <MudAvatar Size="Size.Medium" Class="user-menu-avatar">
+                            @_currentUsername[..1]
+                        </MudAvatar>
+                        <div>
+                            <MudText Typo="Typo.subtitle2">@_currentUsername</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@_userRole</MudText>
+                        </div>
+                    </div>
+                    <MudDivider />
+                    <MudMenuItem OnClick="GoToProfile" Icon="@Icons.Material.Filled.Person">
+                        <MudText>الملف الشخصي</MudText>
+                    </MudMenuItem>
+                    <MudMenuItem OnClick="GoToSettings" Icon="@Icons.Material.Filled.Settings">
+                        <MudText>الإعدادات</MudText>
+                    </MudMenuItem>
+                    <MudDivider />
+                    <MudMenuItem OnClick="Logout" Icon="@Icons.Material.Filled.Logout" Color="Color.Error">
+                        <MudText Color="Color.Error">تسجيل الخروج</MudText>
+                    </MudMenuItem>
+                </ChildContent>
+            </MudMenu>
+        </div>
+    </div>
+</MudAppBar>
+
+@code {
+    [Parameter] public EventCallback ToggleDrawerCallback { get; set; }
+
+    private string _currentUsername = "مستخدم";
+    private string _userRole = "";
+    private bool _isDarkMode = true;
+    private int _notificationCount = 0;
+    private string _searchQuery = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            _currentUsername = user.FindFirst(ClaimTypes.GivenName)?.Value
+                             ?? user.Identity.Name
+                             ?? "مستخدم";
+            _userRole = user.FindFirst(ClaimTypes.Role)?.Value ?? "";
+            var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(userIdClaim, out var userId))
+            {
+                _notificationCount = await MenuService.GetUnreadNotificationCountAsync(userId);
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _isDarkMode = await ThemeService.IsDarkModeAsync();
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleDrawer() => ToggleDrawerCallback.InvokeAsync();
+
+    private async Task ToggleTheme()
+    {
+        _isDarkMode = !_isDarkMode;
+        await ThemeService.SetDarkModeAsync(_isDarkMode);
+    }
+
+    private string GetBreadcrumbText()
+    {
+        var uri = Navigation.ToBaseRelativePath(Navigation.Uri);
+        if (string.IsNullOrEmpty(uri) || uri == "/") return "لوحة التحكم";
+
+        var segments = uri.Split('/');
+        var breadcrumbs = segments.Select(s =>
+        {
+            return s switch
+            {
+                "users" => "المستخدمون", "roles" => "الأدوار",
+                "invoices" => "الفواتير", "customers" => "العملاء",
+                "orders" => "الطلبات", "inventory" => "المخزون",
+                "warehouses" => "المستودعات", "suppliers" => "الموردين",
+                "production-orders" => "أوامر الإنتاج", "quality" => "الجودة",
+                "accounts" => "الحسابات", "expenses" => "المصروفات",
+                "reports" => "التقارير", "settings" => "الإعدادات",
+                "profile" => "الملف الشخصي", "create" => "جديد", "edit" => "تعديل",
+                _ => s
+            };
+        });
+        return string.Join(" › ", breadcrumbs);
+    }
+
+    private void GoToProfile() => Navigation.NavigateTo("/profile");
+    private void GoToSettings() => Navigation.NavigateTo("/settings");
+    private void Logout() => Navigation.NavigateTo("/api/auth/logout", forceLoad: true);
+}
+

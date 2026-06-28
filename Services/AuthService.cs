@@ -1,7 +1,5 @@
 using System.Security.Claims;
 using LagalerieFurniture.Data;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 
 namespace LagalerieFurniture.Services;
@@ -103,7 +101,6 @@ public class AuthService : IAuthService
             // ترقية كلمات المرور القديمة (نص صريح) إلى BCrypt بعد أول دخول ناجح
             if (!_passwordHasher.IsBCryptHash(user.PasswordHash))
             {
-                var rehashed = user.PasswordHash; // نحتفظ بالقيمة قبل التغيير
                 user.PasswordHash = _passwordHasher.Hash(password);
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("تمت ترقية تشفير كلمة مرور المستخدم تلقائياً: {Username}", username);
@@ -124,11 +121,9 @@ public class AuthService : IAuthService
                 // لو فيه مشكلة في الـ Role، نكمل بدونها
             }
 
-            // إصدار Authentication Cookie حقيقية (تعيش بعد الـ refresh وإعادة التشغيل)
-            await SignInWithCookieAsync(user, roleName);
-
-            // تحديث حالة المصادقة في Blazor circuit
-            _authStateProvider.MarkUserAsAuthenticated(user.Username, roleName);
+            // ملاحظة: مفيش SignInAsync هنا — الـ cookie بتتصدّر من الـ Minimal API endpoint
+            // لأننا داخل Blazor WebSocket circuit والـ HTTP headers read-only.
+            // Login.razor هيطلب token من الـ API ثم ينقّل لـ /api/auth/login?token=xxx
 
             _logger.LogInformation("تسجيل دخول ناجح: {Username} (دور: {Role})", username, roleName);
 
@@ -157,58 +152,19 @@ public class AuthService : IAuthService
         if (storedPassword == providedPassword)
         {
             _logger.LogWarning("باسورد قديم غير مشفّر — سيتم ترقيتها تلقائياً بعد الدخول");
-            // الترقية تتم بشكل منفصل (RehashLegacyPasswordAsync) بعد تأكيد النجاح
             return true;
         }
 
         return false;
     }
 
-    /// <summary>
-    /// إصدار Authentication Cookie يحوي الـ claims الأساسية.
-    /// </summary>
-    private async Task SignInWithCookieAsync(Models.User user, string roleName)
+    public Task LogoutAsync()
     {
-        var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext == null)
-        {
-            _logger.LogWarning("HttpContext غير متوفر — لا يمكن إصدار cookie. سيتم الاعتماد على حالة الـ circuit فقط.");
-            return;
-        }
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ClaimTypes.Name, user.Username),
-            new(ClaimTypes.Email, user.Email),
-            new(ClaimTypes.GivenName, user.DisplayName),
-            new(ClaimTypes.Role, roleName),
-        };
-
-        var identity = new ClaimsIdentity(claims, "LagalerieCookie");
-        var principal = new ClaimsPrincipal(identity);
-
-        await httpContext.SignInAsync(
-            "LagalerieCookie",
-            principal,
-            new AuthenticationProperties
-            {
-                IsPersistent = true,
-                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(7),
-                AllowRefresh = true
-            });
-    }
-
-    public async Task LogoutAsync()
-    {
-        // مسح الـ cookie أولاً
-        var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext != null)
-        {
-            await httpContext.SignOutAsync("LagalerieCookie");
-        }
-
+        // مفيش SignOutAsync هنا — الـ cookie بتمسح من الـ Minimal API endpoint
+        // لأننا داخل Blazor WebSocket circuit والـ HTTP headers read-only.
+        // Logout.razor بتنقّل لـ /api/auth/logout اللي بيعمل الـ SignOut.
         _authStateProvider.MarkUserAsLoggedOut();
+        return Task.CompletedTask;
     }
 
     public Task<string?> GetCurrentUserAsync()

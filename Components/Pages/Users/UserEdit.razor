@@ -1,0 +1,186 @@
+@page "/users/new"
+@page "/users/{Id:int}/edit"
+@using LagalerieFurniture.Models
+@using LagalerieFurniture.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IUserService UserService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>@(_isEdit ? "تعديل مستخدم" : "مستخدم جديد") - Lagalerie</PageTitle>
+
+<MudText Typo="Typo.h5" Style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">
+    @(_isEdit ? "✏️ تعديل مستخدم" : "➕ مستخدم جديد")
+</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-bottom: 24px;">
+    @(_isEdit ? "تعديل بيانات المستخدم" : "إنشاء حساب مستخدم جديد وتعيين دوره")
+</MudText>
+
+@if (_loading)
+{
+    <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" Class="d-block mx-auto my-8" />
+}
+else
+{
+    <MudPaper Elevation="0" Class="pa-6" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px; max-width: 800px;">
+        <EditForm Model="@_model" OnValidSubmit="Save">
+            <DataAnnotationsValidator />
+
+            <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: var(--primary-gold);" Class="mb-3">البيانات الأساسية</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.FirstName" Label="الاسم الأول" Required="true" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.LastName" Label="اسم العائلة" Required="true" Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+
+            <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: var(--primary-gold);" Class="mt-4 mb-3">بيانات الدخول</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.Username" Label="اسم المستخدم" Required="true" Variant="Variant.Outlined"
+                                  Disabled="@_isEdit" Immediate="true" Validation="@ValidateUsername" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.Email" Label="البريد الإلكتروني" Required="true" Variant="Variant.Outlined" Immediate="true" Validation="@ValidateEmail" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.Phone" Label="رقم الهاتف" Variant="Variant.Outlined" />
+                </MudItem>
+                @if (!_isEdit)
+                {
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_model.Password" Label="كلمة المرور" Required="true" InputType="InputType.Password"
+                                      Variant="Variant.Outlined" Immediate="true" Validation="@ValidatePassword" />
+                    </MudItem>
+                }
+            </MudGrid>
+
+            <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: var(--primary-gold);" Class="mt-4 mb-3">الصلاحيات والفرع</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" md="6">
+                    <MudSelect @bind-Value="_model.RoleId" Label="الدور" Required="true" Variant="Variant.Outlined">
+                        @foreach (var role in _roles)
+                        {
+                            <MudSelectItem Value="@role.Id">@role.DisplayName</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudSelect @bind-Value="_model.DefaultBranchId" Label="الفرع الافتراضي" Variant="Variant.Outlined" Clearable="true">
+                        @foreach (var b in _branches)
+                        {
+                            <MudSelectItem Value="@((int?)b.Id)">@b.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch @bind-Value="_model.IsActive" Label="الحساب نشط" Color="Color.Success" />
+                </MudItem>
+                @if (!_isEdit)
+                {
+                    <MudItem xs="12">
+                        <MudSwitch @bind-Value="_model.MustChangePassword" Label="إلزام المستخدم بتغيير كلمة المرور عند أول دخول" Color="Color.Warning" />
+                    </MudItem>
+                }
+            </MudGrid>
+
+            <div class="d-flex justify-end gap-2 mt-6">
+                <MudButton Variant="Variant.Text" OnClick="Cancel">إلغاء</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Type="@ButtonType.Submit" StartIcon="@Icons.Material.Filled.Save">
+                    حفظ
+                </MudButton>
+            </div>
+        </EditForm>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private bool _isEdit => Id > 0;
+    private bool _loading = true;
+
+    private UserModel _model = new();
+    private List<Role> _roles = new();
+    private List<Branch> _branches = new();
+    private int _currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUserId = state.User.GetUserId() ?? 0;
+
+        _roles = await UserService.GetActiveRolesAsync();
+        _branches = await UserService.GetActiveBranchesAsync();
+
+        if (_isEdit)
+        {
+            var u = await UserService.GetByIdAsync(Id);
+            if (u == null) { Snackbar.Add("المستخدم غير موجود", Severity.Error); Navigation.NavigateTo("/users"); return; }
+            _model = new UserModel
+            {
+                FirstName = u.FirstName, LastName = u.LastName, Username = u.Username,
+                Email = u.Email, Phone = u.Phone, RoleId = u.RoleId,
+                DefaultBranchId = u.DefaultBranchId, IsActive = u.IsActive
+            };
+        }
+
+        _loading = false;
+    }
+
+    private async Task Save(EditContext ctx)
+    {
+        if (_isEdit)
+        {
+            var (ok, err) = await UserService.UpdateAsync(new UpdateUserDto
+            {
+                Id = Id, Email = _model.Email!, Phone = _model.Phone,
+                FirstName = _model.FirstName!, LastName = _model.LastName!,
+                RoleId = _model.RoleId, DefaultBranchId = _model.DefaultBranchId
+            }, _currentUserId);
+            if (ok) { Snackbar.Add("تم الحفظ", Severity.Success); Navigation.NavigateTo("/users"); }
+            else Snackbar.Add(err ?? "فشل", Severity.Error);
+        }
+        else
+        {
+            var (ok, err, newId) = await UserService.CreateAsync(new CreateUserDto
+            {
+                Username = _model.Username!, Email = _model.Email!, Phone = _model.Phone,
+                FirstName = _model.FirstName!, LastName = _model.LastName!,
+                Password = _model.Password!, RoleId = _model.RoleId,
+                DefaultBranchId = _model.DefaultBranchId, IsActive = _model.IsActive,
+                MustChangePassword = _model.MustChangePassword
+            }, _currentUserId);
+            if (ok) { Snackbar.Add("تم إنشاء المستخدم", Severity.Success); Navigation.NavigateTo("/users"); }
+            else Snackbar.Add(err ?? "فشل", Severity.Error);
+        }
+    }
+
+    private void Cancel() => Navigation.NavigateTo("/users");
+
+    private IEnumerable<string>? ValidateUsername(string v)
+        => string.IsNullOrWhiteSpace(v) ? new[] { "مطلوب" } : null;
+    private IEnumerable<string>? ValidatePassword(string v)
+        => string.IsNullOrWhiteSpace(v) ? new[] { "مطلوب" } : v.Length < 6 ? new[] { "6 أحرف على الأقل" } : null;
+    private static readonly System.Text.RegularExpressions.Regex EmailRx =
+        new("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private IEnumerable<string>? ValidateEmail(string v)
+        => string.IsNullOrWhiteSpace(v) ? new[] { "مطلوب" } : !EmailRx.IsMatch(v) ? new[] { "بريد غير صالح" } : null;
+
+    private class UserModel
+    {
+        public string? Username { get; set; }
+        public string? Email { get; set; }
+        public string? Phone { get; set; }
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Password { get; set; }
+        public int RoleId { get; set; }
+        public int? DefaultBranchId { get; set; }
+        public bool IsActive { get; set; } = true;
+        public bool MustChangePassword { get; set; } = true;
+    }
+}

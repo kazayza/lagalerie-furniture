@@ -1,0 +1,134 @@
+@page "/users/{UserId:int}/permissions"
+@using LagalerieFurniture.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize(Policy = "users.permissions")]
+@inject IUserPermissionService UserPermService
+@inject IUserService UserService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>الصلاحيات - Lagalerie</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" Class="d-block mx-auto my-8" />
+}
+else
+{
+    <MudText Typo="Typo.h5" Style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">
+        🔐 صلاحيات: @_displayName
+    </MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-bottom: 16px;">
+        الاستثناءات الشخصية فوق صلاحيات الدور. عدّل العمود «النتيجة» لإضافة/منع صلاحية لهذا المستخدم تحديداً.
+    </MudText>
+
+    <MudAlert Severity="Severity.Info" Variant="Variant.Text" Class="mb-4">
+        ملاحظة: العمود «من الدور» يعرض صلاحيات دوره الأساسية. لتغييرها عدّل الدور نفسه من صفحة الأدوار.
+    </MudAlert>
+
+    <MudPaper Elevation="0" Class="pa-4 mb-4" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px;">
+        <MudTextField @bind-Value="_search" Label="فلترة بالبحث" Variant="Variant.Outlined" Size="Size.Small" Adornment="Adornment.Start" Immediate="true">
+            <MudIcon Icon="@Icons.Material.Filled.Search" />
+        </MudTextField>
+    </MudPaper>
+
+    @foreach (var moduleGroup in _filteredMatrix.GroupBy(m => m.ModuleDisplayName))
+    {
+        <MudPaper Elevation="0" Class="pa-4 mb-3" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px;">
+            <MudText Typo="Typo.subtitle2" Style="color: var(--primary-gold); font-weight: 700;" Class="mb-2">@moduleGroup.Key</MudText>
+            <MudTable Items="@moduleGroup.ToList()" Hover="true" Elevation="0" Dense="true">
+                <HeaderContent>
+                    <MudTh>الصلاحية</MudTh>
+                    <MudTh Style="text-align: center;">من الدور</MudTh>
+                    <MudTh Style="text-align: center;">استثناء شخصي</MudTh>
+                    <MudTh Style="text-align: center;">النتيجة</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="p">
+                    <MudTd>
+                        <MudText Typo="Typo.body2">@p.DisplayName</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-family: monospace;">@p.Code</MudText>
+                    </MudTd>
+                    <MudTd Style="text-align: center;">
+                        <MudIcon Icon="@(p.FromRole ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)"
+                                 Color="@(p.FromRole ? Color.Success : Color.Default)" />
+                    </MudTd>
+                    <MudTd Style="text-align: center;">
+                        <span class="status-chip @(p.HasOverride ? "override" : "disabled")">
+                            @(p.HasOverride ? "نعم" : "لا")
+                        </span>
+                    </MudTd>
+                    <MudTd Style="text-align: center;">
+                        <MudCheckBox @bind-Value="@_effective[p.Code]" Color="Color.Primary" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+    }
+
+    <div class="d-flex justify-end gap-2">
+        <MudButton Variant="Variant.Text" OnClick="@(() => Navigation.NavigateTo("/users"))">إلغاء</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" StartIcon="@Icons.Material.Filled.Save">حفظ الاستثناءات</MudButton>
+    </div>
+}
+
+@code {
+    [Parameter] public int UserId { get; set; }
+
+    private bool _loading = true;
+    private string _displayName = string.Empty;
+    private string _search = string.Empty;
+    private int _currentUserId;
+
+    private List<PermissionMatrixItem> _matrix = new();
+    private Dictionary<string, bool> _effective = new(StringComparer.OrdinalIgnoreCase);
+
+    private IEnumerable<PermissionMatrixItem> _filteredMatrix =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _matrix
+            : _matrix.Where(m => m.Code.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                                  || m.DisplayName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                                  || m.ModuleDisplayName.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUserId = state.User.GetUserId() ?? 0;
+
+        var u = await UserService.GetByIdAsync(UserId);
+        _displayName = u?.DisplayName ?? "مستخدم";
+
+        _matrix = await UserPermService.GetUserPermissionMatrixAsync(UserId);
+
+        // الـ matrix رجع effective = (من الدور مع تطبيق الاستثناءات).
+        // المستخدم بيشتغل على «النتيجة» مباشرة: أي تغيير = استثناء جديد (إذا اختلف عن «من الدور»).
+        foreach (var p in _matrix)
+            _effective[p.Code] = p.Effective;
+
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        // نحسب الفروقات: لو «النتيجة» مختلفة عن «من الدور» → استثناء (grant أو deny)
+        var overrides = new List<UserOverrideInput>();
+        foreach (var p in _matrix)
+        {
+            var eff = _effective[p.Code];
+            if (eff != p.FromRole)
+            {
+                overrides.Add(new UserOverrideInput
+                {
+                    PermissionCode = p.Code,
+                    IsGranted = eff,
+                    Reason = eff ? "إضافة شخصية" : "منع شخصي"
+                });
+            }
+        }
+
+        var (ok, err) = await UserPermService.SetUserOverridesAsync(UserId, overrides, _currentUserId);
+        if (ok) { Snackbar.Add($"تم حفظ {overrides.Count} استثناء شخصي. اطلب من المستخدم إعادة الدخول لتفعيلها.", Severity.Success); Navigation.NavigateTo("/users"); }
+        else Snackbar.Add(err ?? "فشل", Severity.Error);
+    }
+}
