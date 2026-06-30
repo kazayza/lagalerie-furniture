@@ -78,6 +78,11 @@ PublishProfiles/
 # ----- Secrets / Configuration (هام جداً: لا نرفع بيانات الاعتماد) -----
 appsettings.Development.json
 appsettings.*.Development.json
+appsettings.json
+appsettings.*.json
+
+# نسمح فقط بملف مثال بدون أسرار
+!appsettings.example.json
 secrets.json
 *.pfx
 *.key
@@ -106,3 +111,4 @@ Desktop.ini
 # ----- Backup files -----
 *.bak
 *.backup
+
