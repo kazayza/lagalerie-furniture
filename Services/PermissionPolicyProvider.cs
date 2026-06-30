@@ -5,9 +5,11 @@ using Microsoft.Extensions.Options;
 namespace LagalerieFurniture.Services;
 
 /// <summary>
-/// يوفّر policies بشكل ديناميكي: أي اسم policy مساوي لكود صلاحية (مثل "users.view")
-/// يتحوّل تلقائياً لـ policy تتطلب claim "permission" بنفس القيمة.
-/// كده مفيش حاجة نسجّل كل policy يدوياً — أي كود صلاحية يشتغل فوراً مع [Authorize(Policy="...")].
+/// يوفّر policies بشكل ديناميكي: أي اسم policy يعبّر عن كود صلاحية
+/// مثل SET_VIEW أو SALES_VIEW أو users.view يتحول إلى PermissionRequirement.
+///
+/// مهم: لا نستخدم RequireClaim مباشرة هنا، لأن RequireClaim لا يفهم wildcard (*)
+/// ولا Admin/SuperAdmin bypass. لذلك نمرر الفحص إلى PermissionAuthorizationHandler.
 /// </summary>
 public class PermissionPolicyProvider : IAuthorizationPolicyProvider
 {
@@ -26,44 +28,69 @@ public class PermissionPolicyProvider : IAuthorizationPolicyProvider
 
     public Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
-        // أي policy اسمها كود صلاحية (يحتوي على "_" أو "." أو يطابق نمط UPPER_SNAKE)
-        // → نحوّلها لمتطلب claim "permission"
-        // أمثلة: "users.view", "DASH_VIEW", "users_create", "SET_VIEW"
-        if (policyName.Contains('.') || policyName.Contains('_'))
+        // أي policy اسمها كود صلاحية — أمثلة:
+        // SET_VIEW, SET_EDIT, DASH_VIEW, SALES_VIEW, users.view
+        // نحولها إلى Requirement مخصص علشان يدعم:
+        // - Admin / SuperAdmin bypass
+        // - permission wildcard = "*"
+        // - claim permission المطابق للكود
+        if (IsPermissionPolicy(policyName))
         {
             var policy = new AuthorizationPolicyBuilder()
-                .RequireClaim("permission", policyName)
+                .RequireAuthenticatedUser()
+                .AddRequirements(new PermissionRequirement(policyName))
                 .Build();
+
             return Task.FromResult<AuthorizationPolicy?>(policy);
         }
 
+        // أي policy عادية مثل "Admin" تروح للـ fallback provider
         return _fallbackProvider.GetPolicyAsync(policyName);
+    }
+
+    private static bool IsPermissionPolicy(string policyName)
+    {
+        if (string.IsNullOrWhiteSpace(policyName))
+            return false;
+
+        // سياسات الصلاحيات عندنا إما UPPER_SNAKE مثل SET_VIEW
+        // أو dot notation مثل users.view
+        return policyName.Contains('_') || policyName.Contains('.');
     }
 }
 
 /// <summary>
-/// Handler يتحقق من وجود claim "permission" بالقيمة المطلوبة.
-/// (مدموج هنا عشان الـ policy provider والـ handler في نفس السياق.)
+/// Handler يتحقق من صلاحية المستخدم.
+/// يدعم:
+/// - Admin / SuperAdmin bypass
+/// - wildcard permission = "*"
+/// - permission claim مطابق للكود المطلوب
 /// </summary>
 public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionRequirement>
 {
     protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, PermissionRequirement requirement)
     {
-        // الأدمن (Admin أو SuperAdmin) يتجاوز كل الفحوص
+        if (context.User?.Identity?.IsAuthenticated != true)
+            return Task.CompletedTask;
+
+        // الأدمن يتجاوز كل الفحوص
         if (context.User.IsInRole("Admin") || context.User.IsInRole("SuperAdmin"))
         {
             context.Succeed(requirement);
             return Task.CompletedTask;
         }
 
-        // Wildcard "*" = كل الصلاحيات (للأدمن بشكل ديناميكي)
+        // Wildcard "*" = كل الصلاحيات
         if (context.User.HasClaim(c => c.Type == "permission" && c.Value == "*"))
         {
             context.Succeed(requirement);
             return Task.CompletedTask;
         }
 
-        if (context.User.HasClaim(c => c.Type == "permission" && c.Value == requirement.PermissionCode))
+        // الصلاحية المطلوبة موجودة كـ claim
+        if (context.User.HasClaim(c =>
+                c.Type == "permission" &&
+                string.Equals(c.Value, requirement.PermissionCode, StringComparison.OrdinalIgnoreCase)))
         {
             context.Succeed(requirement);
         }
@@ -82,31 +109,35 @@ public class PermissionRequirement : IAuthorizationRequirement
 }
 
 /// <summary>
-/// دوال مساعدة لفحص الصلاحية داخل الـ Razor components (AuthorizeView وما شابه).
+/// دوال مساعدة لفحص الصلاحية داخل Razor components.
 /// </summary>
 public static class PermissionExtensions
 {
-    /// <summary>هل المستخدم الحالي عنده صلاحية معينة؟ (الأدمن أو SuperAdmin يتجاوز.)</summary>
+    /// <summary>هل المستخدم الحالي عنده صلاحية معينة؟</summary>
     public static bool HasPermission(this ClaimsPrincipal user, string permissionCode)
     {
+        if (user?.Identity?.IsAuthenticated != true)
+            return false;
+
         if (user.IsInRole("Admin") || user.IsInRole("SuperAdmin"))
             return true;
 
-        // Wildcard "*" = كل الصلاحيات
         if (user.HasClaim(c => c.Type == "permission" && c.Value == "*"))
             return true;
 
-        return user.HasClaim(c => c.Type == "permission" && c.Value == permissionCode);
+        return user.HasClaim(c =>
+            c.Type == "permission" &&
+            string.Equals(c.Value, permissionCode, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>كل أكواد الصلاحيات للمستخدم الحالي.</summary>
     public static IEnumerable<string> GetPermissions(this ClaimsPrincipal user)
         => user.FindAll("permission").Select(c => c.Value);
 
-    /// <summary>رقم تعريف المستخدم من الـ claims (أو null).</summary>
+    /// <summary>رقم تعريف المستخدم من الـ claims أو null.</summary>
     public static int? GetUserId(this ClaimsPrincipal user)
     {
-        var idClaim = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var idClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(idClaim, out var id) ? id : null;
     }
 }

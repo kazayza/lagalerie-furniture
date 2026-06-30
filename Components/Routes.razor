@@ -1,10 +1,44 @@
-﻿<Router AppAssembly="@typeof(Program).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(LagalerieFurniture.Components.Layout.MainLayout)" />
-    </Found>
-    <NotFound>
-        <LayoutView Layout="@typeof(LagalerieFurniture.Components.Layout.MainLayout)">
-            <p>الصفحة غير موجودة</p>
-        </LayoutView>
-    </NotFound>
-</Router>
+﻿<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(Program).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(LagalerieFurniture.Components.Layout.MainLayout)">
+                <NotAuthorized Context="authContext">
+                    @if (authContext.User?.Identity?.IsAuthenticated == true)
+                    {
+                        <LayoutView Layout="@typeof(LagalerieFurniture.Components.Layout.MainLayout)">
+                            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="ma-6">
+                                غير مصرح لك بالدخول إلى هذه الصفحة.
+                            </MudAlert>
+                        </LayoutView>
+                    }
+                    else
+                    {
+                        <LayoutView Layout="@typeof(LagalerieFurniture.Components.Layout.EmptyLayout)">
+                            <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0b1120; color: #f1f5f9; font-family: Cairo, Segoe UI, sans-serif;">
+                                <div style="text-align: center; padding: 32px; border: 1px solid rgba(212,175,55,.35); border-radius: 18px; background: rgba(21,30,50,.88); max-width: 460px;">
+                                    <h2 style="margin: 0 0 12px; color: #d4af37;">تسجيل الدخول مطلوب</h2>
+                                    <p style="margin: 0 0 24px; color: #94a3b8;">برجاء تسجيل الدخول للوصول إلى النظام.</p>
+                                    <a href="/login" style="display: inline-block; padding: 10px 22px; border-radius: 999px; background: #d4af37; color: #0b1120; text-decoration: none; font-weight: 700;">تسجيل الدخول</a>
+                                </div>
+                            </div>
+                        </LayoutView>
+                    }
+                </NotAuthorized>
+                <Authorizing>
+                    <LayoutView Layout="@typeof(LagalerieFurniture.Components.Layout.EmptyLayout)">
+                        <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0b1120; color: #f1f5f9; font-family: Cairo, Segoe UI, sans-serif;">
+                            جاري التحقق من الصلاحيات...
+                        </div>
+                    </LayoutView>
+                </Authorizing>
+            </AuthorizeRouteView>
+        </Found>
+        <NotFound>
+            <LayoutView Layout="@typeof(LagalerieFurniture.Components.Layout.MainLayout)">
+                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="ma-6">
+                    الصفحة غير موجودة.
+                </MudAlert>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

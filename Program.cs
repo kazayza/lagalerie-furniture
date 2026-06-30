@@ -61,7 +61,9 @@ builder.Services.AddAuthentication("LagalerieCookie")
     {
         options.Cookie.Name = "LagalerieAuth";
         options.Cookie.HttpOnly = true;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+            ? CookieSecurePolicy.SameAsRequest
+            : CookieSecurePolicy.Always;
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.ExpireTimeSpan = TimeSpan.FromDays(7);
         options.SlidingExpiration = true;
@@ -179,7 +181,7 @@ builder.Services.AddScoped<UserInfoService>();
 
 // Authorization policy provider + handler (dynamic permission policies)
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
-builder.Services.AddScoped<PermissionAuthorizationHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 var app = builder.Build();
 
@@ -288,11 +290,21 @@ app.MapGet("/api/auth/login", async (
 
 // GET /api/auth/logout
 // يمسح الـ cookie ويرجّع لصفحة الدخول
+// لا نستخدم RequireAuthorization هنا: حتى لو المستخدم غير مسجل، نمسح أي cookie قديمة ونرجعه للـ login.
 app.MapGet("/api/auth/logout", async (HttpContext context) =>
 {
     await context.SignOutAsync("LagalerieCookie");
+
+    context.Response.Cookies.Delete("LagalerieAuth", new CookieOptions
+    {
+        HttpOnly = true,
+        Secure = !app.Environment.IsDevelopment(),
+        SameSite = SameSiteMode.Lax,
+        Path = "/"
+    });
+
     return Results.Redirect("/login");
-}).RequireAuthorization();
+});
 
 // ============================================================
 // GET /api/auth/me — يرجّع بيانات المستخدم الحالي من الـ cookie
