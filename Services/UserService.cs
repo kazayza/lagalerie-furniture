@@ -5,24 +5,25 @@ using Microsoft.EntityFrameworkCore;
 namespace LagalerieFurniture.Services;
 
 /// <summary>
-/// تنفيذ إدارة المستخدمين. يتبع نفس نمط AuthService: scoped،
-/// يحقن ApplicationDbContext + IPasswordHasher + IHttpContextAccessor + ILogger.
+/// تنفيذ إدارة المستخدمين.
+/// يستخدم IDbContextFactory عشان كل عملية DB تـ create DbContext مستقل —
+/// ده ضروري في Blazor Server عشان نتجنب concurrent access على نفس الـ DbContext.
 /// كل عمليات التعديل تُسجَّل في PermissionAuditLog.
 /// </summary>
 public class UserService : IUserService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<UserService> _logger;
 
     public UserService(
-        ApplicationDbContext context,
+        IDbContextFactory<ApplicationDbContext> contextFactory,
         IPasswordHasher passwordHasher,
         IHttpContextAccessor httpContextAccessor,
         ILogger<UserService> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _passwordHasher = passwordHasher;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
@@ -31,7 +32,12 @@ public class UserService : IUserService
     /// <inheritdoc/>
     public async Task<PagedResult<UserListItemDto>> GetUsersAsync(UserFilter filter)
     {
-        var query = _context.Users
+        // نتأكد إن Page وPageSize موجبين (defensive — قدام أي مكان يبعت قيم 0 أو سالبة)
+        var page = filter.Page < 1 ? 1 : filter.Page;
+        var pageSize = filter.PageSize < 1 ? 20 : filter.PageSize;
+
+        using var context = _contextFactory.CreateDbContext();
+        var query = context.Users
             .AsNoTracking()
             .Where(u => !u.IsDeleted);
 
@@ -55,8 +61,8 @@ public class UserService : IUserService
 
         var items = await query
             .OrderByDescending(u => u.CreatedAt)
-            .Skip((filter.Page - 1) * filter.PageSize)
-            .Take(filter.PageSize)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(u => new UserListItemDto
             {
                 Id = u.Id,
@@ -77,26 +83,31 @@ public class UserService : IUserService
         {
             Items = items,
             TotalCount = totalCount,
-            Page = filter.Page,
-            PageSize = filter.PageSize
+            Page = page,
+            PageSize = pageSize
         };
     }
 
     /// <inheritdoc/>
-    public Task<User?> GetByIdAsync(int id) =>
-        _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted);
+    public async Task<User?> GetByIdAsync(int id)
+    {
+        using var context = _contextFactory.CreateDbContext();
+        return await context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted);
+    }
 
     /// <inheritdoc/>
     public async Task<(bool Success, string? Error, int? UserId)> CreateAsync(CreateUserDto dto, int createdById)
     {
+        using var context = _contextFactory.CreateDbContext();
+
         // التحقق من عدم تكرار اسم المستخدم/الإيميل
-        var exists = await _context.Users.AnyAsync(u =>
+        var exists = await context.Users.AnyAsync(u =>
             !u.IsDeleted && (u.Username == dto.Username || u.Email == dto.Email));
         if (exists)
             return (false, "اسم المستخدم أو البريد الإلكتروني مستخدم بالفعل", null);
 
         // التحقق من وجود الدور
-        var roleExists = await _context.Roles.AnyAsync(r => r.Id == dto.RoleId && !r.IsDeleted);
+        var roleExists = await context.Roles.AnyAsync(r => r.Id == dto.RoleId && !r.IsDeleted);
         if (!roleExists)
             return (false, "الدور المحدد غير موجود", null);
 
@@ -118,8 +129,8 @@ public class UserService : IUserService
             FailedLoginAttempts = 0
         };
 
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
 
         await LogAuditAsync(createdById, targetUserId: user.Id, action: "user.create",
             newValue: $"username={user.Username}, role={dto.RoleId}");
@@ -131,12 +142,13 @@ public class UserService : IUserService
     /// <inheritdoc/>
     public async Task<(bool Success, string? Error)> UpdateAsync(UpdateUserDto dto, int updatedById)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == dto.Id && !u.IsDeleted);
+        using var context = _contextFactory.CreateDbContext();
+        var user = await context.Users.FirstOrDefaultAsync(u => u.Id == dto.Id && !u.IsDeleted);
         if (user == null)
             return (false, "المستخدم غير موجود");
 
         // التحقق من عدم تكرار الإيميل لمستخدم آخر
-        var emailTaken = await _context.Users.AnyAsync(u =>
+        var emailTaken = await context.Users.AnyAsync(u =>
             u.Id != dto.Id && !u.IsDeleted && u.Email == dto.Email);
         if (emailTaken)
             return (false, "البريد الإلكتروني مستخدم من قبل مستخدم آخر");
@@ -152,7 +164,7 @@ public class UserService : IUserService
         user.DefaultBranchId = dto.DefaultBranchId;
         user.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         var newValues = $"email={user.Email}, role={user.RoleId}";
         await LogAuditAsync(updatedById, targetUserId: user.Id, action: "user.update",
@@ -165,7 +177,8 @@ public class UserService : IUserService
     /// <inheritdoc/>
     public async Task<(bool Success, string? Error)> DeleteAsync(int userId, int deletedById)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
+        using var context = _contextFactory.CreateDbContext();
+        var user = await context.Users.FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
         if (user == null)
             return (false, "المستخدم غير موجود");
 
@@ -181,7 +194,7 @@ public class UserService : IUserService
         user.IsActive = false;
         user.UpdatedAt = now;
 
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         await LogAuditAsync(deletedById, targetUserId: userId, action: "user.delete",
             oldValue: "active", newValue: "deleted");
@@ -193,13 +206,14 @@ public class UserService : IUserService
     /// <inheritdoc/>
     public async Task<(bool Success, string? Error)> ToggleActiveAsync(int userId, int actedById)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
+        using var context = _contextFactory.CreateDbContext();
+        var user = await context.Users.FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
         if (user == null)
             return (false, "المستخدم غير موجود");
 
         user.IsActive = !user.IsActive;
         user.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         await LogAuditAsync(actedById, targetUserId: userId, action: "user.toggle_active",
             oldValue: (!user.IsActive).ToString(), newValue: user.IsActive.ToString());
@@ -211,14 +225,15 @@ public class UserService : IUserService
     /// <inheritdoc/>
     public async Task<(bool Success, string? Error)> UnlockAsync(int userId, int actedById)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
+        using var context = _contextFactory.CreateDbContext();
+        var user = await context.Users.FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
         if (user == null)
             return (false, "المستخدم غير موجود");
 
         user.LockoutEnd = null;
         user.FailedLoginAttempts = 0;
         user.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         await LogAuditAsync(actedById, targetUserId: userId, action: "user.unlock");
 
@@ -232,7 +247,8 @@ public class UserService : IUserService
         if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 6)
             return (false, "كلمة المرور يجب أن تكون 6 أحرف على الأقل");
 
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
+        using var context = _contextFactory.CreateDbContext();
+        var user = await context.Users.FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
         if (user == null)
             return (false, "المستخدم غير موجود");
 
@@ -241,7 +257,7 @@ public class UserService : IUserService
         user.LockoutEnd = null;
         user.FailedLoginAttempts = 0;
         user.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         await LogAuditAsync(actedById, targetUserId: userId, action: "user.reset_password");
 
@@ -255,7 +271,8 @@ public class UserService : IUserService
         if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 6)
             return (false, "كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل");
 
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
+        using var context = _contextFactory.CreateDbContext();
+        var user = await context.Users.FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
         if (user == null)
             return (false, "المستخدم غير موجود");
 
@@ -266,7 +283,7 @@ public class UserService : IUserService
         user.PasswordHash = _passwordHasher.Hash(newPassword);
         user.MustChangePassword = false;
         user.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         await LogAuditAsync(userId, targetUserId: userId, action: "user.change_password_self");
 
@@ -275,12 +292,18 @@ public class UserService : IUserService
     }
 
     /// <inheritdoc/>
-    public Task<List<Role>> GetActiveRolesAsync() =>
-        _context.Roles.AsNoTracking().Where(r => !r.IsDeleted && r.IsActive).OrderBy(r => r.DisplayName).ToListAsync();
+    public async Task<List<Role>> GetActiveRolesAsync()
+    {
+        using var context = _contextFactory.CreateDbContext();
+        return await context.Roles.AsNoTracking().Where(r => !r.IsDeleted && r.IsActive).OrderBy(r => r.DisplayName).ToListAsync();
+    }
 
     /// <inheritdoc/>
-    public Task<List<Branch>> GetActiveBranchesAsync() =>
-        _context.Branches.AsNoTracking().OrderBy(b => b.Name).ToListAsync();
+    public async Task<List<Branch>> GetActiveBranchesAsync()
+    {
+        using var context = _contextFactory.CreateDbContext();
+        return await context.Branches.AsNoTracking().OrderBy(b => b.Name).ToListAsync();
+    }
 
     /// <summary>تسجيل عملية في سجل تدقيق الصلاحيات.</summary>
     private async Task LogAuditAsync(
@@ -294,7 +317,8 @@ public class UserService : IUserService
     {
         try
         {
-            _context.PermissionAuditLogs.Add(new PermissionAuditLog
+            using var context = _contextFactory.CreateDbContext();
+            context.PermissionAuditLogs.Add(new PermissionAuditLog
             {
                 UserId = actorUserId,
                 TargetUserId = targetUserId,
@@ -306,7 +330,7 @@ public class UserService : IUserService
                 IpAddress = GetClientIp(),
                 CreatedAt = DateTime.UtcNow
             });
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
         }
         catch (Exception ex)
         {

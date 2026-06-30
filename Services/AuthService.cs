@@ -6,7 +6,7 @@ namespace LagalerieFurniture.Services;
 
 public class AuthService : IAuthService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly CustomAuthStateProvider _authStateProvider;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IHttpContextAccessor _httpContextAccessor;
@@ -17,13 +17,13 @@ public class AuthService : IAuthService
     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
 
     public AuthService(
-        ApplicationDbContext context,
+        IDbContextFactory<ApplicationDbContext> contextFactory,
         CustomAuthStateProvider authStateProvider,
         IPasswordHasher passwordHasher,
         IHttpContextAccessor httpContextAccessor,
         ILogger<AuthService> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _authStateProvider = authStateProvider;
         _passwordHasher = passwordHasher;
         _httpContextAccessor = httpContextAccessor;
@@ -39,8 +39,10 @@ public class AuthService : IAuthService
 
             _logger.LogInformation("محاولة تسجيل دخول للمستخدم: {Username}", username);
 
+            using var context = _contextFactory.CreateDbContext();
+
             // نحتاج تتبّع الكيان (tracking) عشان نحدّث LastLoginAt / FailedAttempts
-            var user = await _context.Users
+            var user = await context.Users
                 .FirstOrDefaultAsync(u => u.Username == username);
 
             // فحص 1: المستخدم موجود؟ (نفس الرسالة عشان ما نكشفش وجود الحساب)
@@ -84,7 +86,7 @@ public class AuthService : IAuthService
                     user.LockoutEnd = DateTime.UtcNow.Add(LockoutDuration);
                     _logger.LogWarning("تم قفل الحساب بعد {Count} محاولات فاشلة: {Username}", MaxFailedAttempts, username);
                 }
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 _logger.LogWarning("كلمة مرور خاطئة للمستخدم: {Username} (محاولة {Count})", username, user.FailedLoginAttempts);
                 return (false, "اسم المستخدم أو كلمة المرور غير صحيحة", null, null);
@@ -96,13 +98,13 @@ public class AuthService : IAuthService
             user.LastLoginAt = DateTime.UtcNow;
             user.LastLoginIp = GetClientIp();
 
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
 
             // ترقية كلمات المرور القديمة (نص صريح) إلى BCrypt بعد أول دخول ناجح
             if (!_passwordHasher.IsBCryptHash(user.PasswordHash))
             {
                 user.PasswordHash = _passwordHasher.Hash(password);
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
                 _logger.LogInformation("تمت ترقية تشفير كلمة مرور المستخدم تلقائياً: {Username}", username);
             }
 
@@ -110,7 +112,7 @@ public class AuthService : IAuthService
             var roleName = "User";
             try
             {
-                var role = await _context.Roles
+                var role = await context.Roles
                     .AsNoTracking()
                     .FirstOrDefaultAsync(r => r.Id == user.RoleId);
                 if (role != null)

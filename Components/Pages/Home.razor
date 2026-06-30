@@ -1,110 +1,671 @@
 @page "/"
-@using MudBlazor
+@using LagalerieFurniture.Services
+@using LagalerieFurniture.Models
 @using Microsoft.AspNetCore.Components.Authorization
-@inject AuthenticationStateProvider AuthenticationStateProvider
+@using System.Security.Claims
+@inject IDashboardService DashboardService
+@inject IPermissionService PermissionService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
 
-<PageTitle>الرئيسية - Lagalerie Furniture</PageTitle>
+<PageTitle>لوحة التحكم - Lagalerie Furniture</PageTitle>
 
-<MudGrid Spacing="3" Class="mb-6">
-    <MudItem xs="12" sm="6" md="3">
-        <div class="dashboard-card fade-in" style="animation-delay: 0ms;">
-            <div class="dashboard-card-icon sales">
-                <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Large" />
+@if (_loading)
+{
+    <div class="kpi-grid">
+        @for (int i = 0; i < 4; i++)
+        {
+            <div class="skeleton" style="height: 140px; border-radius: var(--radius-lg);"></div>
+        }
+    </div>
+    <MudGrid Spacing="4">
+        <MudItem xs="12" md="8"><div class="skeleton" style="height: 380px; border-radius: var(--radius-lg);"></div></MudItem>
+        <MudItem xs="12" md="4"><div class="skeleton" style="height: 380px; border-radius: var(--radius-lg);"></div></MudItem>
+    </MudGrid>
+}
+else
+{
+    @* ===== KPI Cards ===== *@
+    <div class="kpi-grid">
+        @if (_permissions.Contains("SALES_VIEW"))
+        {
+            <div class="kpi-card fade-in-up" style="animation-delay: 0ms;">
+                <div class="kpi-card-header">
+                    <div class="kpi-icon sales">
+                        <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Large" />
+                    </div>
+                    @if (_kpis.MonthSalesDeltaPct.HasValue)
+                    {
+                        var delta = _kpis.MonthSalesDeltaPct.Value;
+                        var trendClass = delta >= 0 ? "up" : "down";
+                        var trendIcon = delta >= 0 ? Icons.Material.Filled.TrendingUp : Icons.Material.Filled.TrendingDown;
+                        <span class="kpi-trend @trendClass">
+                            <MudIcon Icon="@trendIcon" Size="Size.Small" />
+                            @($"{delta:+0.0;-0.0;0.0}%")
+                        </span>
+                    }
+                </div>
+                <div class="kpi-value">@FormatCurrency(_kpis.MonthSales)</div>
+                <div class="kpi-label">مبيعات الشهر</div>
             </div>
-            <div class="dashboard-card-title">المبيعات اليوم</div>
-            <div class="dashboard-card-value">24,580 ج.م</div>
-            <div class="dashboard-card-trend trend-up">
-                <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Small" />
-                <span>+12.5%</span>
+
+            <div class="kpi-card fade-in-up" style="animation-delay: 100ms;">
+                <div class="kpi-card-header">
+                    <div class="kpi-icon finance">
+                        <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Size="Size.Large" />
+                    </div>
+                    <span class="kpi-trend neutral">
+                        <MudIcon Icon="@Icons.Material.Filled.Receipt" Size="Size.Small" />
+                        @_kpis.PendingInvoices فاتورة
+                    </span>
+                </div>
+                <div class="kpi-value">@FormatCurrency(_kpis.OutstandingReceivables)</div>
+                <div class="kpi-label">مستحقات قائمة</div>
             </div>
-        </div>
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-        <div class="dashboard-card fade-in" style="animation-delay: 100ms;">
-            <div class="dashboard-card-icon inventory">
-                <MudIcon Icon="@Icons.Material.Filled.Warehouse" Size="Size.Large" />
+        }
+
+        @if (_permissions.Contains("CRM_VIEW"))
+        {
+            <div class="kpi-card fade-in-up" style="animation-delay: 200ms;">
+                <div class="kpi-card-header">
+                    <div class="kpi-icon customers">
+                        <MudIcon Icon="@Icons.Material.Filled.Group" Size="Size.Large" />
+                    </div>
+                    <span class="kpi-trend up">
+                        <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Size="Size.Small" />
+                        نشط
+                    </span>
+                </div>
+                <div class="kpi-value">@FormatNumber(_kpis.ActiveCustomersCount)</div>
+                <div class="kpi-label">العملاء النشطون</div>
             </div>
-            <div class="dashboard-card-title">المنتجات بالمخزون</div>
-            <div class="dashboard-card-value">1,248</div>
-            <div class="dashboard-card-trend trend-up">
-                <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Small" />
-                <span>+3.2%</span>
+        }
+
+        @if (_permissions.Contains("INV_VIEW"))
+        {
+            <div class="kpi-card fade-in-up" style="animation-delay: 300ms;">
+                <div class="kpi-card-header">
+                    <div class="kpi-icon products">
+                        <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Large" />
+                    </div>
+                    @if (_kpis.LowStockCount > 0)
+                    {
+                        <span class="kpi-trend down">
+                            <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" />
+                            @_kpis.LowStockCount تحت الحد
+                        </span>
+                    }
+                </div>
+                <div class="kpi-value">@FormatNumber(_kpis.ActiveProductsCount)</div>
+                <div class="kpi-label">المنتجات النشطة</div>
             </div>
-        </div>
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-        <div class="dashboard-card fade-in" style="animation-delay: 200ms;">
-            <div class="dashboard-card-icon production">
-                <MudIcon Icon="@Icons.Material.Filled.Factory" Size="Size.Large" />
+        }
+
+        @if (_permissions.Contains("INV_VIEW"))
+        {
+            <div class="kpi-card fade-in-up" style="animation-delay: 400ms;">
+                <div class="kpi-card-header">
+                    <div class="kpi-icon production">
+                        <MudIcon Icon="@Icons.Material.Filled.PrecisionManufacturing" Size="Size.Large" />
+                    </div>
+                    <span class="kpi-trend up">
+                        <MudIcon Icon="@Icons.Material.Filled.Pending" Size="Size.Small" />
+                        قيد التنفيذ
+                    </span>
+                </div>
+                <div class="kpi-value">@FormatNumber(_kpis.PendingProductionOrders)</div>
+                <div class="kpi-label">أوامر إنتاج معلّقة</div>
             </div>
-            <div class="dashboard-card-title">أوامر الإنتاج</div>
-            <div class="dashboard-card-value">18</div>
-            <div class="dashboard-card-trend trend-down">
-                <MudIcon Icon="@Icons.Material.Filled.TrendingDown" Size="Size.Small" />
-                <span>-2</span>
+        }
+    </div>
+
+    @* ===== Row 2: Sales Chart + Quick Actions ===== *@
+    <MudGrid Spacing="4" Class="mb-4">
+        @if (_permissions.Contains("SALES_VIEW"))
+        {
+            <MudItem xs="12" lg="8">
+                <div class="dashboard-panel fade-in-up" style="animation-delay: 500ms;">
+                    <div class="dashboard-panel-header">
+                        <div class="dashboard-panel-title">
+                            <MudIcon Icon="@Icons.Material.Filled.ShowChart" Color="Color.Primary" />
+                            مبيعات آخر 7 أيام
+                        </div>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            إجمالي: @FormatCurrency((decimal)_sales7Days.Sum(s => s.Total))
+                        </MudText>
+                    </div>
+                    <div class="dashboard-panel-body">
+                        @if (_sales7Days.Any())
+                        {
+                            <div style="display: flex; align-items: flex-end; gap: 12px; height: 260px; padding: 8px 0;">
+                                @{
+                                    var maxVal = Math.Max(_sales7Days.Max(s => s.Total), 1);
+                                }
+                                @foreach (var pt in _sales7Days)
+                                {
+                                    var heightPct = (int)(pt.Total / maxVal * 100);
+                                    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; justify-content: flex-end;">
+                                        <div style="font-size: 0.7rem; color: var(--text-secondary); font-weight: 600;">@FormatShortCurrency(pt.Total)</div>
+                                        <div style="width: 100%; max-width: 48px; height: @(heightPct)%; min-height: 4px; background: linear-gradient(180deg, var(--primary-gold) 0%, rgba(212, 175, 55, 0.4) 100%); border-radius: 6px 6px 0 0; transition: height 0.6s ease; position: relative; cursor: pointer;" title="@pt.DateLabel: @FormatCurrency(pt.Total) (@pt.InvoicesCount فاتورة)">
+                                        </div>
+                                        <div style="font-size: 0.72rem; color: var(--text-muted);">@pt.DateLabel</div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="empty-state">
+                                <MudIcon Icon="@Icons.Material.Filled.BarChart" Class="empty-state-icon" />
+                                <MudText>لا توجد بيانات مبيعات في آخر 7 أيام</MudText>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </MudItem>
+        }
+
+        <MudItem xs="12" lg="@(_permissions.Contains("SALES_VIEW") ? 4 : 12)">
+            <div class="dashboard-panel fade-in-up" style="animation-delay: 600ms; height: 100%;">
+                <div class="dashboard-panel-header">
+                    <div class="dashboard-panel-title">
+                        <MudIcon Icon="@Icons.Material.Filled.Bolt" Color="Color.Warning" />
+                        إجراءات سريعة
+                    </div>
+                </div>
+                <div class="dashboard-panel-body">
+                    <div class="quick-actions-grid">
+                        @if (_permissions.Contains("SALES_CREATE"))
+                        {
+                            <MudButton Variant="Variant.Text" Class="quick-action-btn" OnClick="@(() => Navigation.NavigateTo("/invoices/create"))">
+                                <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Class="quick-action-icon" />
+                                <span class="quick-action-label">فاتورة جديدة</span>
+                            </MudButton>
+                        }
+                        @if (_permissions.Contains("CRM_CREATE"))
+                        {
+                            <MudButton Variant="Variant.Text" Class="quick-action-btn" OnClick="@(() => Navigation.NavigateTo("/customers/create"))">
+                                <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Class="quick-action-icon" />
+                                <span class="quick-action-label">عميل جديد</span>
+                            </MudButton>
+                        }
+                        @if (_permissions.Contains("INV_CREATE"))
+                        {
+                            <MudButton Variant="Variant.Text" Class="quick-action-btn" OnClick="@(() => Navigation.NavigateTo("/inventory/create"))">
+                                <MudIcon Icon="@Icons.Material.Filled.AddBox" Class="quick-action-icon" />
+                                <span class="quick-action-label">منتج جديد</span>
+                            </MudButton>
+                        }
+                        @if (_permissions.Contains("INV_CREATE"))
+                        {
+                            <MudButton Variant="Variant.Text" Class="quick-action-btn" OnClick="@(() => Navigation.NavigateTo("/production-orders/create"))">
+                                <MudIcon Icon="@Icons.Material.Filled.Factory" Class="quick-action-icon" />
+                                <span class="quick-action-label">أمر إنتاج</span>
+                            </MudButton>
+                        }
+                        @if (_permissions.Contains("SET_VIEW"))
+                        {
+                            <MudButton Variant="Variant.Text" Class="quick-action-btn" OnClick="@(() => Navigation.NavigateTo("/users/new"))">
+                                <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Class="quick-action-icon" />
+                                <span class="quick-action-label">مستخدم جديد</span>
+                            </MudButton>
+                        }
+                        @if (_permissions.Contains("REP_VIEW"))
+                        {
+                            <MudButton Variant="Variant.Text" Class="quick-action-btn" OnClick="@(() => Navigation.NavigateTo("/reports"))">
+                                <MudIcon Icon="@Icons.Material.Filled.Assessment" Class="quick-action-icon" />
+                                <span class="quick-action-label">التقارير</span>
+                            </MudButton>
+                        }
+                        @if (!_permissions.Any())
+                        {
+                            <div class="empty-state" style="grid-column: span 2;">
+                                <MudText>لا توجد إجراءات سريعة متاحة لك</MudText>
+                            </div>
+                        }
+                    </div>
+                </div>
             </div>
-        </div>
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-        <div class="dashboard-card fade-in" style="animation-delay: 300ms;">
-            <div class="dashboard-card-icon finance">
-                <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Size="Size.Large" />
-            </div>
-            <div class="dashboard-card-title">المستحقات</div>
-            <div class="dashboard-card-value">45,200 ج.م</div>
-            <div class="dashboard-card-trend trend-up">
-                <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Small" />
-                <span>+8.1%</span>
-            </div>
-        </div>
-    <MudItem xs="12" md="4">
-        <MudCard Elevation="0" Class="fade-in" Style="background: var(--surface-dark); border: 1px solid var(--border-glass);">
-            <MudCardContent>
-                <MudText Typo="Typo.h6" Style="font-weight: 700; color: var(--text-primary); margin-bottom: 20px;">
-                    اجراءات سريعة
-                </MudText>
-                <MudGrid Spacing="2">
-                    <MudItem xs="6">
-                        <MudButton Variant="Variant.Outlined" FullWidth="true"
-                                   Color="Color.Primary" Href="/invoices/create"
-                                   Style="border-color: var(--border-gold); color: var(--primary-gold);">
-                            فاتورة جديدة
+        </MudItem>
+    </MudGrid>
+
+    @* ===== Row 3: Recent Invoices + Invoice Status Breakdown ===== *@
+    @if (_permissions.Contains("SALES_VIEW"))
+    {
+        <MudGrid Spacing="4" Class="mb-4">
+            <MudItem xs="12" lg="8">
+                <div class="dashboard-panel fade-in-up" style="animation-delay: 700ms;">
+                    <div class="dashboard-panel-header">
+                        <div class="dashboard-panel-title">
+                            <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Primary" />
+                            أحدث الفواتير
+                        </div>
+                        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => Navigation.NavigateTo("/invoices"))">
+                            عرض الكل
+                            <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
                         </MudButton>
-                    </MudItem>
-                    <MudItem xs="6">
-                        <MudButton Variant="Variant.Outlined" FullWidth="true"
-                                   Color="Color.Primary" Href="/customers/create"
-                                   Style="border-color: var(--border-gold); color: var(--primary-gold);">
-                            عميل جديد
-                        </MudButton>
-                    </MudItem>
-                    <MudItem xs="6">
-                        <MudButton Variant="Variant.Outlined" FullWidth="true"
-                                   Color="Color.Primary" Href="/inventory/create"
-                                   Style="border-color: var(--border-gold); color: var(--primary-gold);">
-                            منتج جديد
-                        </MudButton>
-                    </MudItem>
-                    <MudItem xs="6">
-                        <MudButton Variant="Variant.Outlined" FullWidth="true"
-                                   Color="Color.Primary" Href="/production/create"
-                                   Style="border-color: var(--border-gold); color: var(--primary-gold);">
-                            أمر إنتاج
-                        </MudButton>
-                    </MudItem>
-                </MudGrid>
-            </MudCardContent>
-        </MudCard>
-    </MudItem>
-</MudGrid>
+                    </div>
+                    <div class="dashboard-panel-body" style="padding: 0;">
+                        @if (_recentInvoices.Any())
+                        {
+                            <MudTable Items="@_recentInvoices" Hover="true" Elevation="0" Class="transparent-table">
+                                <HeaderContent>
+                                    <MudTh>رقم الفاتورة</MudTh>
+                                    <MudTh>العميل</MudTh>
+                                    <MudTh>التاريخ</MudTh>
+                                    <MudTh>المبلغ</MudTh>
+                                    <MudTh>الحالة</MudTh>
+                                </HeaderContent>
+                                <RowTemplate Context="inv">
+                                    <MudTd>
+                                        <MudText Typo="Typo.body2" Style="font-weight: 600; color: var(--primary-gold); font-family: monospace;">@inv.InvoiceNumber</MudText>
+                                    </MudTd>
+                                    <MudTd>
+                                        <MudText Typo="Typo.body2" Style="color: var(--text-primary);">@inv.CustomerName</MudText>
+                                    </MudTd>
+                                    <MudTd>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@inv.InvoiceDate.ToLocalTime().ToString("yyyy-MM-dd")</MudText>
+                                    </MudTd>
+                                    <MudTd>
+                                        <MudText Typo="Typo.body2" Style="font-weight: 700;">@FormatCurrency(inv.TotalAmount)</MudText>
+                                    </MudTd>
+                                    <MudTd>
+                                        <span class="status-chip @MapInvoiceStatusClass(inv.Status)">@MapInvoiceStatusLabel(inv.Status)</span>
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                        else
+                        {
+                            <div class="empty-state">
+                                <MudIcon Icon="@Icons.Material.Filled.Receipt" Class="empty-state-icon" />
+                                <MudText>لا توجد فواتير بعد</MudText>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </MudItem>
+
+            <MudItem xs="12" lg="4">
+                <div class="dashboard-panel fade-in-up" style="animation-delay: 800ms; height: 100%;">
+                    <div class="dashboard-panel-header">
+                        <div class="dashboard-panel-title">
+                            <MudIcon Icon="@Icons.Material.Filled.DonutLarge" Color="Color.Info" />
+                            توزيع الفواتير
+                        </div>
+                    </div>
+                    <div class="dashboard-panel-body">
+                        @if (_invoiceBreakdown.Any())
+                        {
+                            var total = _invoiceBreakdown.Sum(b => b.Count);
+                            foreach (var item in _invoiceBreakdown)
+                            {
+                                var pct = total > 0 ? (int)(item.Count * 100.0 / total) : 0;
+                                <div style="margin-bottom: 14px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                        <span class="status-chip @MapInvoiceStatusClass(item.Status)">@item.StatusLabel</span>
+                                        <MudText Typo="Typo.caption" Style="font-weight: 700;">@item.Count (@pct%)</MudText>
+                                    </div>
+                                    <div style="height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden;">
+                                        <div style="height: 100%; width: @(pct)%; background: var(--primary-gold); border-radius: 3px; transition: width 0.8s ease;"></div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="empty-state">
+                                <MudIcon Icon="@Icons.Material.Filled.PieChart" Class="empty-state-icon" />
+                                <MudText>لا توجد بيانات</MudText>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </MudItem>
+        </MudGrid>
+    }
+
+    @* ===== Row 4: Top Customers + Low Stock + Production ===== *@
+    <MudGrid Spacing="4" Class="mb-4">
+        @if (_permissions.Contains("CRM_VIEW"))
+        {
+            <MudItem xs="12" lg="4">
+                <div class="dashboard-panel fade-in-up" style="animation-delay: 900ms; height: 100%;">
+                    <div class="dashboard-panel-header">
+                        <div class="dashboard-panel-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Star" Color="Color.Warning" />
+                            أفضل العملاء
+                        </div>
+                    </div>
+                    <div class="dashboard-panel-body">
+                        @if (_topCustomers.Any())
+                        {
+                            @for (int i = 0; i < _topCustomers.Count; i++)
+                            {
+                                var c = _topCustomers[i];
+                                var rankClass = i switch { 0 => "gold", 1 => "silver", 2 => "bronze", _ => "" };
+                                <div class="top-customer-row">
+                                    <div class="top-customer-rank @rankClass">@(i + 1)</div>
+                                    <div class="top-customer-info">
+                                        <div class="top-customer-name">@c.DisplayName</div>
+                                        <div class="top-customer-phone">@c.Phone • @c.TotalOrders طلب</div>
+                                    </div>
+                                    <div class="top-customer-amount">
+                                        <div class="top-customer-amount-value">@FormatShortCurrency(c.TotalPurchases)</div>
+                                        <div class="top-customer-amount-label">إجمالي</div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="empty-state">
+                                <MudIcon Icon="@Icons.Material.Filled.Group" Class="empty-state-icon" />
+                                <MudText>لا توجد بيانات</MudText>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </MudItem>
+        }
+
+        @if (_permissions.Contains("INV_VIEW"))
+        {
+            <MudItem xs="12" lg="4">
+                <div class="dashboard-panel fade-in-up" style="animation-delay: 1000ms; height: 100%;">
+                    <div class="dashboard-panel-header">
+                        <div class="dashboard-panel-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" />
+                            أصناف تحت الحد الأدنى
+                        </div>
+                    </div>
+                    <div class="dashboard-panel-body">
+                        @if (_lowStock.Any())
+                        {
+                            foreach (var item in _lowStock)
+                            {
+                                <div class="low-stock-row">
+                                    <div class="low-stock-info">
+                                        <div class="low-stock-name">@item.ProductName</div>
+                                        <div class="low-stock-sku">@item.Sku • @item.WarehouseName</div>
+                                    </div>
+                                    <div class="low-stock-qty">
+                                        @item.QuantityOnHand / @item.ReorderLevel
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="empty-state" style="padding: 32px 16px;">
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="empty-state-icon" Style="color: var(--success); opacity: 0.7;" />
+                                <MudText>كل الأصناف فوق الحد الأدنى ✨</MudText>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </MudItem>
+        }
+
+        @if (_permissions.Contains("INV_VIEW"))
+        {
+            <MudItem xs="12" lg="4">
+                <div class="dashboard-panel fade-in-up" style="animation-delay: 1100ms; height: 100%;">
+                    <div class="dashboard-panel-header">
+                        <div class="dashboard-panel-title">
+                            <MudIcon Icon="@Icons.Material.Filled.PrecisionManufacturing" Color="Color.Secondary" />
+                            أحدث أوامر الإنتاج
+                        </div>
+                    </div>
+                    <div class="dashboard-panel-body" style="padding: 0;">
+                        @if (_recentProduction.Any())
+                        {
+                            <div style="padding: 8px 0;">
+                                @foreach (var p in _recentProduction)
+                                {
+                                    <div style="padding: 10px 20px; border-bottom: 1px solid var(--border-subtle);">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                            <MudText Typo="Typo.body2" Style="font-weight: 600; color: var(--primary-gold); font-family: monospace;">@p.ProductionNumber</MudText>
+                                            <span class="priority-chip @MapPriorityClass(p.Priority)">@MapPriorityLabel(p.Priority)</span>
+                                        </div>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@p.ProductName</MudText>
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+                                            <MudText Typo="Typo.caption" Style="color: var(--text-muted);">@p.QuantityCompleted / @p.Quantity وحدة</MudText>
+                                            <span class="status-chip @MapProductionStatusClass(p.Status)">@MapProductionStatusLabel(p.Status)</span>
+                                        </div>
+                                        <div style="height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; margin-top: 6px;">
+                                            <div style="height: 100%; width: @(p.Quantity > 0 ? (int)(p.QuantityCompleted * 100.0 / p.Quantity) : 0)%; background: var(--primary-gold);"></div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="empty-state">
+                                <MudIcon Icon="@Icons.Material.Filled.Factory" Class="empty-state-icon" />
+                                <MudText>لا توجد أوامر إنتاج</MudText>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </MudItem>
+        }
+    </MudGrid>
+
+    @* ===== Row 5: Activity Timeline ===== *@
+    @if (_permissions.Contains("SET_VIEW") && _recentActivity.Any())
+    {
+        <MudGrid Spacing="4">
+            <MudItem xs="12">
+                <div class="dashboard-panel fade-in-up" style="animation-delay: 1200ms;">
+                    <div class="dashboard-panel-header">
+                        <div class="dashboard-panel-title">
+                            <MudIcon Icon="@Icons.Material.Filled.History" Color="Color.Info" />
+                            النشاط الأخير
+                        </div>
+                    </div>
+                    <div class="dashboard-panel-body">
+                        <ul class="activity-timeline">
+                            @foreach (var a in _recentActivity)
+                            {
+                                <li class="activity-item">
+                                    <div class="activity-dot @a.Color">
+                                        <MudIcon Icon="@MapActivityIconName(a.Icon)" Size="Size.Small" />
+                                    </div>
+                                    <div class="activity-content">
+                                        <p class="activity-text">
+                                            <strong style="color: var(--text-primary);">@a.ActorName</strong>
+                                            — @a.Description
+                                        </p>
+                                        <div class="activity-meta">
+                                            @a.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                        </div>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            </MudItem>
+        </MudGrid>
+    }
+}
 
 @code {
-    private string _currentUsername = "User";
+    private bool _loading = true;
+    private int _currentUserId;
+    private HashSet<string> _permissions = new(StringComparer.OrdinalIgnoreCase);
+
+    private DashboardKpisDto _kpis = new();
+    private List<SalesPointDto> _sales7Days = new();
+    private List<InvoiceStatusBreakdownDto> _invoiceBreakdown = new();
+    private List<RecentInvoiceDto> _recentInvoices = new();
+    private List<RecentProductionOrderDto> _recentProduction = new();
+    private List<LowStockItemDto> _lowStock = new();
+    private List<TopCustomerDto> _topCustomers = new();
+    private List<ActivityItemDto> _recentActivity = new();
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-        _currentUsername = user.Identity?.Name ?? "User";
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity?.IsAuthenticated != true)
+            {
+                Navigation.NavigateTo("/login", true);
+                return;
+            }
+
+            _currentUserId = user.GetUserId() ?? 0;
+            _permissions = await PermissionService.GetEffectivePermissionCodesAsync(_currentUserId);
+
+            // Admin gets all permissions if user is admin (SuperAdmin or Admin role)
+            if (user.IsInRole("Admin") || user.IsInRole("SuperAdmin"))
+            {
+                _permissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "DASH_VIEW", "DASH_STATS",
+                    "PROD_VIEW", "PROD_CREATE", "PROD_EDIT", "PROD_DELETE",
+                    "CRM_VIEW", "CRM_CREATE", "CRM_EDIT", "CRM_DELETE",
+                    "SALES_VIEW", "SALES_CREATE", "SALES_EDIT", "SALES_DELETE",
+                    "PUR_VIEW", "PUR_CREATE", "PUR_EDIT", "PUR_DELETE",
+                    "INV_VIEW", "INV_CREATE", "INV_EDIT", "INV_DELETE",
+                    "FIN_VIEW", "FIN_CREATE", "FIN_EDIT", "FIN_DELETE",
+                    "HR_VIEW", "HR_CREATE", "HR_EDIT", "HR_DELETE",
+                    "REP_VIEW", "REP_EXPORT",
+                    "SET_VIEW", "SET_EDIT",
+                    "ASS_VIEW", "ASS_CREATE", "ASS_EDIT", "ASS_DELETE",
+                    "COMP_VIEW", "COMP_CREATE", "COMP_EDIT", "COMP_DELETE",
+                    "DEL_VIEW", "DEL_CREATE", "DEL_EDIT", "DEL_DELETE",
+                    "PROJ_VIEW", "PROJ_CREATE", "PROJ_EDIT", "PROJ_DELETE"
+                };
+            }
+
+            // حمّل كل البيانات بالتوازي
+            var kpisTask = DashboardService.GetKpisAsync(_currentUserId, _permissions);
+            var salesTask = DashboardService.GetLast7DaysSalesAsync(_currentUserId, _permissions);
+            var breakdownTask = DashboardService.GetInvoiceStatusBreakdownAsync(_currentUserId, _permissions);
+            var invoicesTask = DashboardService.GetRecentInvoicesAsync(_currentUserId, _permissions);
+            var productionTask = DashboardService.GetRecentProductionOrdersAsync(_currentUserId, _permissions);
+            var lowStockTask = DashboardService.GetLowStockItemsAsync(_currentUserId, _permissions);
+            var topCustomersTask = DashboardService.GetTopCustomersAsync(_currentUserId, _permissions);
+            var activityTask = DashboardService.GetRecentActivityAsync(_currentUserId, _permissions);
+
+            await Task.WhenAll(kpisTask, salesTask, breakdownTask, invoicesTask,
+                              productionTask, lowStockTask, topCustomersTask, activityTask);
+
+            _kpis = await kpisTask;
+            _sales7Days = await salesTask;
+            _invoiceBreakdown = await breakdownTask;
+            _recentInvoices = await invoicesTask;
+            _recentProduction = await productionTask;
+            _lowStock = await lowStockTask;
+            _topCustomers = await topCustomersTask;
+            _recentActivity = await activityTask;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Dashboard load error: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
+
+    // ===== Formatting helpers =====
+
+    private static string FormatCurrency(decimal? value)
+    {
+        if (!value.HasValue) return "0 ج.م";
+        return $"{value.Value:N2} ج.م";
+    }
+
+    private static string FormatShortCurrency(decimal? value)
+    {
+        if (!value.HasValue) return "0";
+        var v = value.Value;
+        if (v >= 1_000_000) return $"{v / 1_000_000:F1}M";
+        if (v >= 1_000) return $"{v / 1_000:F1}K";
+        return $"{v:N0}";
+    }
+
+    private static string FormatNumber(int? value)
+    {
+        if (!value.HasValue) return "0";
+        return value.Value.ToString("N0");
+    }
+
+    // ===== Status mappers =====
+
+    private static string MapInvoiceStatusClass(string status) => status switch
+    {
+        "Paid" => "paid",
+        "Partial" => "partial",
+        "Unpaid" => "unpaid",
+        "Overdue" => "overdue",
+        "Draft" => "draft",
+        "Cancelled" => "cancelled",
+        _ => "draft"
+    };
+
+    private static string MapInvoiceStatusLabel(string status) => status switch
+    {
+        "Paid" => "مدفوعة",
+        "Partial" => "جزئية",
+        "Unpaid" => "غير مدفوعة",
+        "Overdue" => "متأخرة",
+        "Draft" => "مسودة",
+        "Cancelled" => "ملغاة",
+        _ => status
+    };
+
+    private static string MapPriorityClass(string priority) => priority?.ToLowerInvariant() switch
+    {
+        "high" => "high",
+        "medium" => "medium",
+        "low" => "low",
+        _ => "low"
+    };
+
+    private static string MapPriorityLabel(string priority) => (priority ?? "").ToLowerInvariant() switch
+    {
+        "high" => "عالية",
+        "medium" => "متوسطة",
+        "low" => "منخفضة",
+        _ => priority ?? ""
+    };
+
+    private static string MapProductionStatusClass(string status) => status?.ToLowerInvariant() switch
+    {
+        "completed" => "paid",
+        "in_progress" or "in-progress" => "partial",
+        "pending" => "draft",
+        "cancelled" => "cancelled",
+        _ => "draft"
+    };
+
+    private static string MapProductionStatusLabel(string status) => (status ?? "").ToLowerInvariant() switch
+    {
+        "completed" => "مكتمل",
+        "in_progress" or "in-progress" => "قيد التنفيذ",
+        "pending" => "معلّق",
+        "cancelled" => "ملغي",
+        _ => status ?? ""
+    };
+
+    private static string MapActivityIconName(string icon) => icon switch
+    {
+        "person_add" => Icons.Material.Filled.PersonAdd,
+        "edit" => Icons.Material.Filled.Edit,
+        "delete" => Icons.Material.Filled.Delete,
+        "login" => Icons.Material.Filled.Login,
+        "logout" => Icons.Material.Filled.Logout,
+        "payment" => Icons.Material.Filled.Payment,
+        "receipt" => Icons.Material.Filled.Receipt,
+        _ => Icons.Material.Filled.Info
+    };
 }

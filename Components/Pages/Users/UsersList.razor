@@ -3,7 +3,7 @@
 @using LagalerieFurniture.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
-@attribute [Authorize(Policy = "users.view")]
+@attribute [Authorize(Policy = "SET_VIEW")]
 @inject IUserService UserService
 @inject IRoleService RoleService
 @inject IDialogService DialogService
@@ -13,19 +13,25 @@
 
 <PageTitle>المستخدمون - Lagalerie</PageTitle>
 
-<MudText Typo="Typo.h5" Style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">
-    👥 إدارة المستخدمين
-</MudText>
-<MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-bottom: 24px;">
-    عرض وإدارة حسابات المستخدمين وصلاحياتهم
-</MudText>
+<div class="page-title-section">
+    <MudText Typo="Typo.h5">
+        <MudIcon Icon="@Icons.Material.Filled.People" Class="text-gold" />
+        إدارة المستخدمين
+    </MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="page-subtitle">
+        عرض وإدارة حسابات المستخدمين وصلاحياتهم في النظام
+    </MudText>
+</div>
 
-<MudPaper Elevation="0" Class="pa-4 mb-4" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px;">
+@* ===== Filter Panel ===== *@
+<div class="filter-panel">
     <MudGrid Spacing="2" AlignItems="AlignItems.Center">
         <MudItem xs="12" md="5">
-            <MudTextField @bind-Value="_search" Label="بحث" Placeholder="اسم المستخدم، الإيميل، الاسم..."
-                          Variant="Variant.Outlined" Size="Size.Small" Adornment="Adornment.Start"
-                          Immediate="true" OnAdornmentClick="Search" OnKeyUp="OnSearchKeyUp">
+            <MudTextField @bind-Value="_search" Label="بحث"
+                          Placeholder="اسم المستخدم، البريد، الاسم..."
+                          Variant="Variant.Outlined" Size="Size.Small"
+                          Adornment="Adornment.Start" Immediate="true"
+                          OnAdornmentClick="Search" OnKeyUp="OnSearchKeyUp">
                 <MudIcon Icon="@Icons.Material.Filled.Search" />
             </MudTextField>
         </MudItem>
@@ -44,108 +50,136 @@
             </MudSelect>
         </MudItem>
         <MudItem xs="12" md="2" Class="d-flex justify-end">
-            @if (_currentUser.HasPermission("users.create"))
+            @if (_currentUser.HasPermission("SET_EDIT"))
             {
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreate" StartIcon="@Icons.Material.Filled.PersonAdd">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           OnClick="OpenCreate" StartIcon="@Icons.Material.Filled.PersonAdd">
                     مستخدم جديد
                 </MudButton>
             }
         </MudItem>
     </MudGrid>
-</MudPaper>
+</div>
 
-<MudPaper Elevation="0" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
-    <MudTable Items="@_result.Items" Hover="true" Loading="_loading" Elevation="0">
-        <HeaderContent>
-            <MudTh>المستخدم</MudTh>
-            <MudTh>البريد الإلكتروني</MudTh>
-            <MudTh>الدور</MudTh>
-            <MudTh>الحالة</MudTh>
-            <MudTh>آخر دخول</MudTh>
-            <MudTh Style="text-align: center;">إجراءات</MudTh>
-        </HeaderContent>
-        <RowTemplate Context="u">
-            <MudTd>
-                <div class="d-flex align-center gap-2">
-                    <MudAvatar Image="@u.AvatarUrl" Color="Color.Primary" Size="Size.Small">
-                        @u.DisplayName[..1]
-                    </MudAvatar>
-                    <div>
-                        <MudText Typo="Typo.body2" Style="color: var(--text-primary); font-weight: 600;">@u.DisplayName</MudText>
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">@u.Username</MudText>
-                    </div>
-                </div>
-            </MudTd>
-            <MudTd><MudText Typo="Typo.body2">@u.Email</MudText></MudTd>
-            <MudTd>
-                <span class="status-chip role">@u.RoleDisplayName</span>
-            </MudTd>
-            <MudTd>
-                @if (!u.IsActive)
+@* ===== Users Table ===== *@
+<div class="dashboard-panel">
+    <div class="dashboard-panel-header">
+        <div class="dashboard-panel-title">
+            <MudIcon Icon="@Icons.Material.Filled.List" Color="Color.Primary" />
+            قائمة المستخدمين
+            <MudChip T="int" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary">
+                @_result.TotalCount إجمالي
+            </MudChip>
+        </div>
+    </div>
+    <div style="padding: 0;">
+        @if (_loading)
+        {
+            <div style="padding: 32px;">
+                @for (int i = 0; i < 5; i++)
                 {
-                    <span class="status-chip disabled">معطّل</span>
+                    <div class="skeleton" style="height: 56px; margin-bottom: 8px;"></div>
                 }
-                else if (u.IsLocked)
-                {
-                    <span class="status-chip locked">مقفل</span>
-                }
-                else
-                {
-                    <span class="status-chip active">نشط</span>
-                }
-            </MudTd>
-            <MudTd>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                    @(u.LastLoginAt.HasValue ? u.LastLoginAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "—")
-                </MudText>
-            </MudTd>
-            <MudTd Style="text-align: center;">
-                <MudMenu>
-                    <ActivatorContent>
-                        <MudIconButton Icon="@Icons.Material.Filled.MoreVert" />
-                    </ActivatorContent>
-                    <ChildContent>
-                        @if (_currentUser.HasPermission("users.edit"))
-                        {
-                            <MudMenuItem OnClick="@(() => Edit(u))" Icon="@Icons.Material.Filled.Edit">تعديل</MudMenuItem>
-                        }
-                        @if (_currentUser.HasPermission("users.permissions"))
-                        {
-                            <MudMenuItem Href="@($"/users/{u.Id}/permissions")" Icon="@Icons.Material.Filled.Lock">الصلاحيات</MudMenuItem>
-                        }
-                        @if (_currentUser.HasPermission("users.edit"))
-                        {
-                            <MudMenuItem OnClick="@(() => ToggleActive(u))" Icon="@Icons.Material.Filled.PowerSettingsNew">
-                                @(u.IsActive ? "تعطيل" : "تفعيل")
-                            </MudMenuItem>
-                            @if (u.IsLocked)
-                            {
-                                <MudMenuItem OnClick="@(() => Unlock(u))" Icon="@Icons.Material.Filled.LockOpen">فك القفل</MudMenuItem>
-                            }
-                            <MudMenuItem OnClick="@(() => ResetPassword(u))" Icon="@Icons.Material.Filled.Key">إعادة تعيين كلمة المرور</MudMenuItem>
-                        }
-                        @if (_currentUser.HasPermission("users.delete"))
-                        {
-                            <MudMenuItem Divider="true" />
-                            <MudMenuItem OnClick="@(() => Delete(u))" Icon="@Icons.Material.Filled.Delete" Color="Color.Error">حذف</MudMenuItem>
-                        }
-                    </ChildContent>
-                </MudMenu>
-            </MudTd>
-        </RowTemplate>
-        <NoRecordsContent>
-            <div class="pa-8 text-center">
-                <MudIcon Icon="@Icons.Material.Filled.PersonOff" Size="Size.Large" Color="Color.Default" />
-                <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-2">لا يوجد مستخدمون مطابقون</MudText>
             </div>
-        </NoRecordsContent>
-    </MudTable>
+        }
+        else
+        {
+            <MudTable Items="@_result.Items" Hover="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>المستخدم</MudTh>
+                    <MudTh>البريد الإلكتروني</MudTh>
+                    <MudTh>الدور</MudTh>
+                    <MudTh>الحالة</MudTh>
+                    <MudTh>آخر دخول</MudTh>
+                    <MudTh Style="text-align: center;">إجراءات</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="u">
+                    <MudTd>
+                        <div class="d-flex align-center gap-2">
+                            <MudAvatar Image="@u.AvatarUrl" Color="Color.Primary" Size="Size.Small">
+                                @(u.DisplayName.Length > 0 ? u.DisplayName[..1] : "U")
+                            </MudAvatar>
+                            <div>
+                                <MudText Typo="Typo.body2" Style="color: var(--text-primary); font-weight: 600;">@u.DisplayName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@@@u.Username</MudText>
+                            </div>
+                        </div>
+                    </MudTd>
+                    <MudTd><MudText Typo="Typo.body2">@u.Email</MudText></MudTd>
+                    <MudTd>
+                        <span class="status-chip role">@u.RoleDisplayName</span>
+                    </MudTd>
+                    <MudTd>
+                        @if (!u.IsActive)
+                        {
+                            <span class="status-chip disabled">معطّل</span>
+                        }
+                        else if (u.IsLocked)
+                        {
+                            <span class="status-chip locked">مقفل</span>
+                        }
+                        else
+                        {
+                            <span class="status-chip active">نشط</span>
+                        }
+                    </MudTd>
+                    <MudTd>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @(u.LastLoginAt.HasValue ? u.LastLoginAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "—")
+                        </MudText>
+                    </MudTd>
+                    <MudTd Style="text-align: center;">
+                        <MudMenu>
+                            <ActivatorContent>
+                                <MudIconButton Icon="@Icons.Material.Filled.MoreVert" />
+                            </ActivatorContent>
+                            <ChildContent>
+                                @if (_currentUser.HasPermission("SET_EDIT"))
+                                {
+                                    <MudMenuItem OnClick="@(() => Edit(u))" Icon="@Icons.Material.Filled.Edit">تعديل</MudMenuItem>
+                                }
+                                @if (_currentUser.HasPermission("SET_EDIT"))
+                                {
+                                    <MudMenuItem Href="@($"/users/{u.Id}/permissions")" Icon="@Icons.Material.Filled.Lock">الصلاحيات</MudMenuItem>
+                                }
+                                @if (_currentUser.HasPermission("SET_EDIT"))
+                                {
+                                    <MudMenuItem OnClick="@(() => ToggleActive(u))" Icon="@Icons.Material.Filled.PowerSettingsNew">
+                                        @(u.IsActive ? "تعطيل" : "تفعيل")
+                                    </MudMenuItem>
+                                    @if (u.IsLocked)
+                                    {
+                                        <MudMenuItem OnClick="@(() => Unlock(u))" Icon="@Icons.Material.Filled.LockOpen">فك القفل</MudMenuItem>
+                                    }
+                                    <MudMenuItem OnClick="@(() => ResetPassword(u))" Icon="@Icons.Material.Filled.Key">إعادة تعيين كلمة المرور</MudMenuItem>
+                                }
+                                @if (_currentUser.HasPermission("SET_EDIT"))
+                                {
+                                    <MudMenuItem Divider="true" />
+                                    <MudMenuItem OnClick="@(() => Delete(u))" Icon="@Icons.Material.Filled.Delete" Color="Color.Error">حذف</MudMenuItem>
+                                }
+                            </ChildContent>
+                        </MudMenu>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <div class="empty-state">
+                        <MudIcon Icon="@Icons.Material.Filled.PersonOff" Class="empty-state-icon" />
+                        <MudText Typo="Typo.h6" Color="Color.Secondary">لا يوجد مستخدمون مطابقون</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-top: 8px;">
+                            جرّب تعديل معايير البحث أو إنشاء مستخدم جديد
+                        </MudText>
+                    </div>
+                </NoRecordsContent>
+            </MudTable>
 
-    @if (_result.TotalCount > 0)
-    {
-        <MudPagination Count="@_result.TotalPages" Selected="@_selectedPage" OnSelected="OnPageChanged" Class="pa-4 justify-center" />
-    }
-</MudPaper>
+            @if (_result.TotalCount > 0)
+            {
+                <MudPagination Count="@_result.TotalPages" Selected="@_selectedPage" OnSelected="OnPageChanged" Class="pa-4 justify-center" />
+            }
+        }
+    </div>
+</div>
 
 @code {
     private ClaimsPrincipal _currentUser = new();
@@ -155,7 +189,7 @@
     private int? _roleIdFilter;
     private bool? _activeFilter;
 
-    private PagedResult<UserListItemDto> _result = new();
+    private PagedResult<UserListItemDto> _result = new() { Page = 1, PageSize = 20 };
     private List<Role> _roles = new();
     private bool _loading = true;
     private int _selectedPage = 1;
@@ -174,18 +208,23 @@
         _loading = true;
         try
         {
+            // نتأكد إن Page >= 1 قبل الإرسال
+            var pageToLoad = Math.Max(1, _selectedPage);
+
             _result = await UserService.GetUsersAsync(new UserFilter
             {
                 Search = string.IsNullOrWhiteSpace(_search) ? null : _search,
                 RoleId = _roleIdFilter,
                 IsActive = _activeFilter,
-                Page = _result.Page,
+                Page = pageToLoad,
                 PageSize = 20
             });
+
+            _selectedPage = _result.Page; // sync
         }
         catch (Exception ex)
         {
-            Snackbar.Add("حدث خطأ أثناء تحميل البيانات", Severity.Error);
+            Snackbar.Add($"حدث خطأ أثناء تحميل البيانات: {ex.Message}", Severity.Error);
             Console.WriteLine(ex);
         }
         finally
@@ -246,11 +285,5 @@
                 else Snackbar.Add(err ?? "فشل", Severity.Error);
             }
         }
-    }
-
-    // محاكاة useEffect على الفلاتر: نعيد التحميل عند تغيرها
-    protected override async Task OnParametersSetAsync()
-    {
-        // لا شيء — الفلاتر يتم تطبيقها عبر الأزرار
     }
 }

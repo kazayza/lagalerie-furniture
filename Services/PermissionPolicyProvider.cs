@@ -26,8 +26,10 @@ public class PermissionPolicyProvider : IAuthorizationPolicyProvider
 
     public Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
-        // أي policy اسمها كود صلاحية → نحوّلها لمتطلب claim "permission"
-        if (policyName.Contains('.'))
+        // أي policy اسمها كود صلاحية (يحتوي على "_" أو "." أو يطابق نمط UPPER_SNAKE)
+        // → نحوّلها لمتطلب claim "permission"
+        // أمثلة: "users.view", "DASH_VIEW", "users_create", "SET_VIEW"
+        if (policyName.Contains('.') || policyName.Contains('_'))
         {
             var policy = new AuthorizationPolicyBuilder()
                 .RequireClaim("permission", policyName)
@@ -47,8 +49,15 @@ public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionReq
 {
     protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, PermissionRequirement requirement)
     {
-        // الأدمن (role=Admin) يتجاوز كل الفحوص
-        if (context.User.IsInRole("Admin"))
+        // الأدمن (Admin أو SuperAdmin) يتجاوز كل الفحوص
+        if (context.User.IsInRole("Admin") || context.User.IsInRole("SuperAdmin"))
+        {
+            context.Succeed(requirement);
+            return Task.CompletedTask;
+        }
+
+        // Wildcard "*" = كل الصلاحيات (للأدمن بشكل ديناميكي)
+        if (context.User.HasClaim(c => c.Type == "permission" && c.Value == "*"))
         {
             context.Succeed(requirement);
             return Task.CompletedTask;
@@ -77,10 +86,14 @@ public class PermissionRequirement : IAuthorizationRequirement
 /// </summary>
 public static class PermissionExtensions
 {
-    /// <summary>هل المستخدم الحالي عنده صلاحية معينة؟ (الأدمن يتجاوز.)</summary>
+    /// <summary>هل المستخدم الحالي عنده صلاحية معينة؟ (الأدمن أو SuperAdmin يتجاوز.)</summary>
     public static bool HasPermission(this ClaimsPrincipal user, string permissionCode)
     {
-        if (user.IsInRole("Admin"))
+        if (user.IsInRole("Admin") || user.IsInRole("SuperAdmin"))
+            return true;
+
+        // Wildcard "*" = كل الصلاحيات
+        if (user.HasClaim(c => c.Type == "permission" && c.Value == "*"))
             return true;
 
         return user.HasClaim(c => c.Type == "permission" && c.Value == permissionCode);

@@ -8,19 +8,19 @@ namespace LagalerieFurniture.Services;
 
 public class MenuService : IMenuService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly IPermissionService _permissionService;
     private readonly IJSRuntime _js;
     private readonly ILogger<MenuService> _logger;
     private const string StorageKey = "lagalerie_sidebar_mini";
 
     public MenuService(
-        ApplicationDbContext context,
+        IDbContextFactory<ApplicationDbContext> contextFactory,
         IPermissionService permissionService,
         IJSRuntime js,
         ILogger<MenuService> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _permissionService = permissionService;
         _js = js;
         _logger = logger;
@@ -28,10 +28,29 @@ public class MenuService : IMenuService
 
     public async Task<List<NavMenuGroup>> GetUserMenuAsync(int userId)
     {
+        if (userId <= 0)
+        {
+            // Anonymous — نرجّع بس Dashboard
+            return new List<NavMenuGroup>
+            {
+                new()
+                {
+                    Id = 0, Name = "Dashboard", DisplayName = "لوحة التحكم",
+                    Icon = Icons.Material.Filled.Dashboard, SortOrder = 0, IsExpanded = true,
+                    Items = new List<NavMenuItem>
+                    {
+                        new() { Label = "الرئيسية", Href = "/", Icon = Icons.Material.Filled.Dashboard }
+                    }
+                }
+            };
+        }
+
         var accessibleModules = await _permissionService.GetAccessibleModulesAsync(userId);
 
         if (accessibleModules.Count == 0)
         {
+            // Fallback نهائي — على الأقل الـ Dashboard
+            _logger.LogWarning("GetUserMenuAsync: لا توجد موديولات متاحة حتى بعد fallback. إرجاع Dashboard فقط.");
             return new List<NavMenuGroup>
             {
                 new()
@@ -67,6 +86,9 @@ public class MenuService : IMenuService
             })
             .ToList();
 
+        _logger.LogInformation("GetUserMenuAsync: رجّع {Count} مجموعة قائمة للمستخدم {UserId}",
+            menuGroups.Count, userId);
+
         return menuGroups;
     }
 
@@ -96,7 +118,8 @@ public class MenuService : IMenuService
     {
         try
         {
-            return await _context.Notifications
+            using var context = _contextFactory.CreateDbContext();
+            return await context.Notifications
                 .AsNoTracking()
                 .CountAsync(n => n.UserId == userId && !n.IsRead);
         }
@@ -130,7 +153,7 @@ public class MenuService : IMenuService
         "Tasks" => Icons.Material.Filled.Task,
         "CRM" => Icons.Material.Filled.SupportAgent,
         "Complaints" => Icons.Material.Filled.Feedback,
-        "Quality" => Icons.Material.Filled.Quality,
+        "Quality" => Icons.Material.Filled.Verified,
         "Purchases" => Icons.Material.Filled.ShoppingBag,
         "Quotations" => Icons.Material.Filled.RequestQuote,
         _ => Icons.Material.Filled.Circle
@@ -149,4 +172,3 @@ public class MenuService : IMenuService
         _ => Icons.Material.Filled.ChevronLeft
     };
 }
-

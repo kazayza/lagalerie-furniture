@@ -4,7 +4,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components
-@attribute [Authorize(Policy = "roles.view")]
+@attribute [Authorize(Policy = "SET_VIEW")]
 @inject IRoleService RoleService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -13,69 +13,108 @@
 
 <PageTitle>الأدوار - Lagalerie</PageTitle>
 
-<MudText Typo="Typo.h5" Style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">
-    🛡️ إدارة الأدوار
-</MudText>
-<MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-bottom: 24px;">
-    الأدوار ومجموعات الصلاحيات الممنوحة لكل دور
-</MudText>
+<div class="page-title-section">
+    <MudText Typo="Typo.h5">
+        <MudIcon Icon="@Icons.Material.Filled.Shield" Class="text-gold" />
+        إدارة الأدوار
+    </MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="page-subtitle">
+        الأدوار ومجموعات الصلاحيات الممنوحة لكل دور
+    </MudText>
+</div>
 
-<MudPaper Elevation="0" Class="pa-4 mb-4 d-flex justify-end" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px;">
-    @if (_currentUser.HasPermission("roles.create"))
+<div class="filter-panel d-flex justify-space-between align-center">
+    <div class="dashboard-panel-title" style="margin: 0;">
+        <MudIcon Icon="@Icons.Material.Filled.List" Color="Color.Primary" />
+        قائمة الأدوار
+        <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary">@_roles.Count إجمالي</MudChip>
+    </div>
+    @if (_currentUser.HasPermission("SET_EDIT"))
     {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => Navigation.NavigateTo("/roles/new"))">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => Navigation.NavigateTo("/roles/new"))">
             دور جديد
         </MudButton>
     }
-</MudPaper>
+</div>
 
-<MudPaper Elevation="0" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
-    <MudTable Items="@_roles" Hover="true" Loading="_loading" Elevation="0">
-        <HeaderContent>
-            <MudTh>اسم الدور</MudTh>
-            <MudTh>الوصف</MudTh>
-            <MudTh>النوع</MudTh>
-            <MudTh>المستخدمون</MudTh>
-            <MudTh>الحالة</MudTh>
-            <MudTh Style="text-align: center;">إجراءات</MudTh>
-        </HeaderContent>
-        <RowTemplate Context="r">
-            <MudTd>
-                <MudText Typo="Typo.body2" Style="color: var(--text-primary); font-weight: 600;">@r.DisplayName</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">@r.Name</MudText>
-            </MudTd>
-            <MudTd><MudText Typo="Typo.body2" Color="Color.Secondary">@(r.Description ?? "—")</MudText></MudTd>
-            <MudTd>
-                @if (r.IsSystem)
+<div class="dashboard-panel">
+    <div style="padding: 0;">
+        @if (_loading)
+        {
+            <div style="padding: 32px;">
+                @for (int i = 0; i < 4; i++)
                 {
-                    <span class="status-chip system">نظام</span>
+                    <div class="skeleton" style="height: 64px; margin-bottom: 8px;"></div>
                 }
-                else
-                {
-                    <span class="status-chip custom">مخصّص</span>
-                }
-            </MudTd>
-            <MudTd><MudText Typo="Typo.body2">@GetUserCount(r.Id)</MudText></MudTd>
-            <MudTd>
-                <span class="status-chip @(r.IsActive ? "active" : "disabled")">@(r.IsActive ? "نشط" : "معطّل")</span>
-            </MudTd>
-            <MudTd Style="text-align: center;">
-                @if (_currentUser.HasPermission("roles.edit"))
-                {
-                    <MudTooltip Text="الصلاحيات">
-                        <MudIconButton Icon="@Icons.Material.Filled.Security" OnClick="@(() => Navigation.NavigateTo($"/roles/{r.Id}/edit"))" />
-                    </MudTooltip>
-                }
-                @if (_currentUser.HasPermission("roles.delete") && !r.IsSystem)
-                {
-                    <MudTooltip Text="حذف">
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => Delete(r))" />
-                    </MudTooltip>
-                }
-            </MudTd>
-        </RowTemplate>
-    </MudTable>
-</MudPaper>
+            </div>
+        }
+        else
+        {
+            <MudTable Items="@_roles" Hover="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>اسم الدور</MudTh>
+                    <MudTh>الوصف</MudTh>
+                    <MudTh>النوع</MudTh>
+                    <MudTh>المستخدمون</MudTh>
+                    <MudTh>الحالة</MudTh>
+                    <MudTh Style="text-align: center;">إجراءات</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="r">
+                    <MudTd>
+                        <div class="d-flex align-center gap-2">
+                            <div class="kpi-icon" style="width: 36px; height: 36px; background: var(--primary-gold-soft); color: var(--primary-gold);">
+                                <MudIcon Icon="@Icons.Material.Filled.Shield" Size="Size.Small" />
+                            </div>
+                            <div>
+                                <MudText Typo="Typo.body2" Style="color: var(--text-primary); font-weight: 600;">@r.DisplayName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-family: monospace;">@r.Name</MudText>
+                            </div>
+                        </div>
+                    </MudTd>
+                    <MudTd><MudText Typo="Typo.body2" Color="Color.Secondary">@(r.Description ?? "—")</MudText></MudTd>
+                    <MudTd>
+                        @if (r.IsSystem)
+                        {
+                            <span class="status-chip system">نظام</span>
+                        }
+                        else
+                        {
+                            <span class="status-chip custom">مخصّص</span>
+                        }
+                    </MudTd>
+                    <MudTd>
+                        <MudChip T="int" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary">@GetUserCount(r.Id)</MudChip>
+                    </MudTd>
+                    <MudTd>
+                        <span class="status-chip @(r.IsActive ? "active" : "disabled")">@(r.IsActive ? "نشط" : "معطّل")</span>
+                    </MudTd>
+                    <MudTd Style="text-align: center;">
+                        @if (_currentUser.HasPermission("SET_EDIT"))
+                        {
+                            <MudTooltip Text="إدارة الصلاحيات">
+                                <MudIconButton Icon="@Icons.Material.Filled.Security" Color="Color.Primary"
+                                               OnClick="@(() => Navigation.NavigateTo($"/roles/{r.Id}/edit"))" />
+                            </MudTooltip>
+                        }
+                        @if (_currentUser.HasPermission("SET_EDIT") && !r.IsSystem)
+                        {
+                            <MudTooltip Text="حذف">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => Delete(r))" />
+                            </MudTooltip>
+                        }
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <div class="empty-state">
+                        <MudIcon Icon="@Icons.Material.Filled.Shield" Class="empty-state-icon" />
+                        <MudText Typo="Typo.h6" Color="Color.Secondary">لا توجد أدوار</MudText>
+                    </div>
+                </NoRecordsContent>
+            </MudTable>
+        }
+    </div>
+</div>
 
 @code {
     private ClaimsPrincipal _currentUser = new();
@@ -94,7 +133,6 @@
         try
         {
             _roles = await RoleService.GetAllAsync();
-            // حمّل عدّاد المستخدمين لكل دور
             foreach (var r in _roles)
             {
                 var details = await RoleService.GetDetailsAsync(r.Id);
@@ -113,7 +151,7 @@
     {
         var parameters = new DialogParameters
         {
-            ["Message"] = $"هل تريد حذف الدور «{r.DisplayName}»؟",
+            ["Message"] = $"هل تريد حذف الدور «{r.DisplayName}»؟ لا يمكن التراجع عن هذا الإجراء.",
             ["YesText"] = "حذف",
             ["NoText"] = "إلغاء"
         };

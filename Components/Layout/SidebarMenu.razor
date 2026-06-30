@@ -2,8 +2,10 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Routing
 @inject IMenuService MenuService
+@inject UserInfoService UserInfoService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
+@inject ILogger<SidebarMenu> Logger
 
 <div class="sidebar-wrapper @(IsMiniMode ? "sidebar-mini" : "")">
 
@@ -20,9 +22,18 @@
                 </div>
             }
         </div>
-        <button class="sidebar-collapse-btn" @onclick="ToggleMiniMode" title="@(IsMiniMode ? "توسيع" : "تصغير")">
-            <MudIcon Icon="@(IsMiniMode ? Icons.Material.Filled.ChevronLeft : Icons.Material.Filled.ChevronRight)" Size="Size.Small" />
-        </button>
+        @if (!IsMiniMode)
+        {
+            <button class="sidebar-collapse-btn" @onclick="ToggleMiniMode" title="@(IsMiniMode ? "توسيع" : "تصغير")">
+                <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
+            </button>
+        }
+        else
+        {
+            <button class="sidebar-collapse-btn" @onclick="ToggleMiniMode" title="توسيع">
+                <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" />
+            </button>
+        }
     </div>
 
     @if (!IsMiniMode)
@@ -36,44 +47,66 @@
     }
 
     <div class="sidebar-nav-container">
-        <MudNavMenu Class="sidebar-nav-menu">
-            @foreach (var group in _filteredGroups)
-            {
-                @if (IsMiniMode)
+        @if (_loadingMenu)
+        {
+            <div style="padding: 24px; text-align: center;">
+                <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">جاري تحميل القائمة...</MudText>
+            </div>
+        }
+        else if (_menuGroups.Count == 0)
+        {
+            <div style="padding: 24px; text-align: center;">
+                <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                    القائمة فاضية. اضغط للإعادة.
+                </MudText>
+                <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="ReloadMenu" Class="mt-2">
+                    إعادة التحميل
+                </MudButton>
+            </div>
+        }
+        else
+        {
+            <MudNavMenu Class="sidebar-nav-menu">
+                @foreach (var group in _filteredGroups)
                 {
-                    <div class="mini-nav-item" title="@group.DisplayName">
-                        <MudNavLink Href="@GetFirstGroupLink(group)"
-                                    Match="NavLinkMatch.Prefix"
-                                    Icon="@group.Icon"
-                                    Class="mini-nav-link">
-                        </MudNavLink>
-                    </div>
-                }
-                else
-                {
-                    <MudNavGroup Title="@group.DisplayName"
-                                 Icon="@group.Icon"
-                                 Expanded="@(group.IsExpanded || IsGroupActive(group))"
-                                 Class="sidebar-nav-group">
-                        @foreach (var item in group.Items)
-                        {
-                            <MudNavLink Href="@item.Href"
+                    @if (IsMiniMode)
+                    {
+                        <div class="mini-nav-item" title="@group.DisplayName">
+                            <MudNavLink Href="@GetFirstGroupLink(group)"
                                         Match="NavLinkMatch.Prefix"
-                                        Class="sidebar-nav-link"
-                                        Icon="@item.Icon">
-                                <span class="nav-link-content">
-                                    <span class="nav-link-label">@item.Label</span>
-                                    @if (!string.IsNullOrEmpty(item.Badge))
-                                    {
-                                        <span class="nav-link-badge @(item.BadgeColor ?? "badge-primary")">@item.Badge</span>
-                                    }
-                                </span>
+                                        Icon="@group.Icon"
+                                        Class="mini-nav-link">
                             </MudNavLink>
-                        }
-                    </MudNavGroup>
+                        </div>
+                    }
+                    else
+                    {
+                        <MudNavGroup Title="@group.DisplayName"
+                                     Icon="@group.Icon"
+                                     Expanded="@(group.IsExpanded || IsGroupActive(group))"
+                                     Class="sidebar-nav-group">
+                            @foreach (var item in group.Items)
+                            {
+                                <MudNavLink Href="@item.Href"
+                                            Match="NavLinkMatch.Prefix"
+                                            Class="sidebar-nav-link"
+                                            Icon="@item.Icon">
+                                    <span class="nav-link-content">
+                                        <span class="nav-link-label">@item.Label</span>
+                                        @if (!string.IsNullOrEmpty(item.Badge))
+                                        {
+                                            <span class="nav-link-badge @(item.BadgeColor ?? "badge-primary")">@item.Badge</span>
+                                        }
+                                    </span>
+                                </MudNavLink>
+                            }
+                        </MudNavGroup>
+                    }
                 }
-            }
-        </MudNavMenu>
+            </MudNavMenu>
+        }
     </div>
 
     @if (!IsMiniMode)
@@ -92,6 +125,7 @@
 
 @code {
     private List<NavMenuGroup> _menuGroups = new();
+    private bool _loadingMenu = true;
     private string _searchTerm = string.Empty;
     private List<NavMenuGroup> _filteredGroups => string.IsNullOrWhiteSpace(_searchTerm)
         ? _menuGroups
@@ -110,8 +144,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadMenuAsync();
         Navigation.LocationChanged += OnLocationChanged;
+        await LoadMenuAsync();
     }
 
     public void Dispose()
@@ -126,26 +160,68 @@
 
     private async Task LoadMenuAsync()
     {
+        _loadingMenu = true;
         try
         {
+            // محاولة 1: من AuthenticationStateProvider (لو شغّال في pre-render)
             var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             var user = authState.User;
             var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-            if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var userId))
+            Logger.LogInformation(
+                "[SidebarMenu] AuthState: IsAuthenticated={Auth}, Name={Name}, UserId={UserId}, ClaimCount={Count}",
+                user.Identity?.IsAuthenticated, user.Identity?.Name, userIdClaim, user.Claims.Count());
+
+            int userId = 0;
+
+            if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var parsedId))
             {
-                _menuGroups = await MenuService.GetUserMenuAsync(userId);
+                userId = parsedId;
             }
             else
             {
+                // محاولة 2: من UserInfoService (HTTP call لـ /api/auth/me)
+                Logger.LogInformation("[SidebarMenu] AuthState empty, falling back to UserInfoService");
+                var userInfo = await UserInfoService.GetCurrentUserAsync();
+                if (userInfo != null)
+                {
+                    userId = userInfo.UserId;
+                    Logger.LogInformation("[SidebarMenu] UserInfoService returned userId={UserId}, role={Role}",
+                        userId, userInfo.Role);
+                }
+                else
+                {
+                    Logger.LogWarning("[SidebarMenu] UserInfoService returned null — not authenticated?");
+                }
+            }
+
+            if (userId > 0)
+            {
+                _menuGroups = await MenuService.GetUserMenuAsync(userId);
+                Logger.LogInformation("[SidebarMenu] Loaded {Count} groups for userId={UserId}",
+                    _menuGroups.Count, userId);
+            }
+            else
+            {
+                Logger.LogWarning("[SidebarMenu] No valid userId — loading fallback");
                 _menuGroups = await MenuService.GetUserMenuAsync(0);
             }
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"فشل تحميل القائمة: {ex.Message}");
+            Logger.LogError(ex, "[SidebarMenu] فشل تحميل القائمة");
             _menuGroups = new List<NavMenuGroup>();
         }
+        finally
+        {
+            _loadingMenu = false;
+        }
+    }
+
+    private async Task ReloadMenu()
+    {
+        await LoadMenuAsync();
+        StateHasChanged();
     }
 
     private bool IsGroupActive(NavMenuGroup group)

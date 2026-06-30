@@ -6,32 +6,39 @@ namespace LagalerieFurniture.Services;
 
 public class RoleService : IRoleService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<RoleService> _logger;
 
     public RoleService(
-        ApplicationDbContext context,
+        IDbContextFactory<ApplicationDbContext> contextFactory,
         IHttpContextAccessor httpContextAccessor,
         ILogger<RoleService> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
     }
 
     /// <inheritdoc/>
-    public Task<List<Role>> GetAllAsync() =>
-        _context.Roles.AsNoTracking().Where(r => !r.IsDeleted).OrderBy(r => r.DisplayName).ToListAsync();
+    public async Task<List<Role>> GetAllAsync()
+    {
+        using var context = _contextFactory.CreateDbContext();
+        return await context.Roles.AsNoTracking().Where(r => !r.IsDeleted).OrderBy(r => r.DisplayName).ToListAsync();
+    }
 
     /// <inheritdoc/>
-    public Task<Role?> GetByIdAsync(int id) =>
-        _context.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
+    public async Task<Role?> GetByIdAsync(int id)
+    {
+        using var context = _contextFactory.CreateDbContext();
+        return await context.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
+    }
 
     /// <inheritdoc/>
     public async Task<RoleDetailsDto?> GetDetailsAsync(int id)
     {
-        var role = await _context.Roles
+        using var context = _contextFactory.CreateDbContext();
+        var role = await context.Roles
             .AsNoTracking()
             .Where(r => r.Id == id && !r.IsDeleted)
             .Select(r => new RoleDetailsDto
@@ -48,7 +55,7 @@ public class RoleService : IRoleService
 
         if (role == null) return null;
 
-        var codes = await _context.RolePermissions
+        var codes = await context.RolePermissions
             .AsNoTracking()
             .Where(rp => rp.RoleId == id && rp.IsGranted)
             .Select(rp => rp.Permission.Code)
@@ -61,7 +68,8 @@ public class RoleService : IRoleService
     /// <inheritdoc/>
     public async Task<(bool Success, string? Error, int? RoleId)> CreateAsync(CreateRoleDto dto, int createdById)
     {
-        var nameTaken = await _context.Roles.AnyAsync(r => !r.IsDeleted && r.Name == dto.Name.Trim());
+        using var context = _contextFactory.CreateDbContext();
+        var nameTaken = await context.Roles.AnyAsync(r => !r.IsDeleted && r.Name == dto.Name.Trim());
         if (nameTaken)
             return (false, "اسم الدور مستخدم بالفعل", null);
 
@@ -76,8 +84,8 @@ public class RoleService : IRoleService
             CreatedAt = now
         };
 
-        _context.Roles.Add(role);
-        await _context.SaveChangesAsync();
+        context.Roles.Add(role);
+        await context.SaveChangesAsync();
 
         await LogAuditAsync(createdById, action: "role.create", targetRoleId: role.Id,
             newValue: $"name={role.Name}");
@@ -88,7 +96,8 @@ public class RoleService : IRoleService
     /// <inheritdoc/>
     public async Task<(bool Success, string? Error)> UpdateAsync(UpdateRoleDto dto, int updatedById)
     {
-        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == dto.Id && !r.IsDeleted);
+        using var context = _contextFactory.CreateDbContext();
+        var role = await context.Roles.FirstOrDefaultAsync(r => r.Id == dto.Id && !r.IsDeleted);
         if (role == null)
             return (false, "الدور غير موجود");
 
@@ -99,7 +108,7 @@ public class RoleService : IRoleService
         role.IsActive = dto.IsActive;
         role.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         var newValues = $"displayName={role.DisplayName}, active={role.IsActive}";
         await LogAuditAsync(updatedById, action: "role.update", targetRoleId: role.Id,
@@ -111,7 +120,8 @@ public class RoleService : IRoleService
     /// <inheritdoc/>
     public async Task<(bool Success, string? Error)> DeleteAsync(int roleId, int deletedById)
     {
-        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == roleId && !r.IsDeleted);
+        using var context = _contextFactory.CreateDbContext();
+        var role = await context.Roles.FirstOrDefaultAsync(r => r.Id == roleId && !r.IsDeleted);
         if (role == null)
             return (false, "الدور غير موجود");
 
@@ -119,7 +129,7 @@ public class RoleService : IRoleService
             return (false, "لا يمكن حذف أدوار النظام الأساسية");
 
         // منع الحذف لو في مستخدمون تابعون
-        var hasUsers = await _context.Users.AnyAsync(u => u.RoleId == roleId && !u.IsDeleted);
+        var hasUsers = await context.Users.AnyAsync(u => u.RoleId == roleId && !u.IsDeleted);
         if (hasUsers)
             return (false, "لا يمكن حذف الدور لوجود مستخدمين تابعين له. غيّر أدوارهم أولاً");
 
@@ -130,7 +140,7 @@ public class RoleService : IRoleService
         role.IsActive = false;
         role.UpdatedAt = now;
 
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         await LogAuditAsync(deletedById, action: "role.delete", targetRoleId: roleId,
             oldValue: "active", newValue: "deleted");
@@ -141,14 +151,15 @@ public class RoleService : IRoleService
     /// <inheritdoc/>
     public async Task<(bool Success, string? Error)> SetPermissionsAsync(int roleId, HashSet<string> grantedCodes, int actedById)
     {
-        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == roleId && !r.IsDeleted);
+        using var context = _contextFactory.CreateDbContext();
+        var role = await context.Roles.FirstOrDefaultAsync(r => r.Id == roleId && !r.IsDeleted);
         if (role == null)
             return (false, "الدور غير موجود");
 
         // كل الصلاحيات الحالية للدور
-        var existing = await _context.RolePermissions.Where(rp => rp.RoleId == roleId).ToListAsync();
+        var existing = await context.RolePermissions.Where(rp => rp.RoleId == roleId).ToListAsync();
         // كل الأكواد ← ID
-        var allPerms = await _context.Permissions.AsNoTracking().ToListAsync();
+        var allPerms = await context.Permissions.AsNoTracking().ToListAsync();
         var codeToId = allPerms.ToDictionary(p => p.Code, p => p.Id, StringComparer.OrdinalIgnoreCase);
 
         var now = DateTime.UtcNow;
@@ -173,7 +184,7 @@ public class RoleService : IRoleService
             if (existingCodes.Contains(code)) continue;
             if (!codeToId.TryGetValue(code, out var permId)) continue;
 
-            _context.RolePermissions.Add(new RolePermission
+            context.RolePermissions.Add(new RolePermission
             {
                 RoleId = roleId,
                 PermissionId = permId,
@@ -183,7 +194,7 @@ public class RoleService : IRoleService
             });
         }
 
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         await LogAuditAsync(actedById, action: "role.set_permissions", targetRoleId: roleId,
             newValue: newCodesStr);
@@ -203,7 +214,8 @@ public class RoleService : IRoleService
     {
         try
         {
-            _context.PermissionAuditLogs.Add(new PermissionAuditLog
+            using var context = _contextFactory.CreateDbContext();
+            context.PermissionAuditLogs.Add(new PermissionAuditLog
             {
                 UserId = actorUserId,
                 TargetUserId = targetUserId,
@@ -215,7 +227,7 @@ public class RoleService : IRoleService
                 IpAddress = _httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString(),
                 CreatedAt = DateTime.UtcNow
             });
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
         }
         catch (Exception ex)
         {

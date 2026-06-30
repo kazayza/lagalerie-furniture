@@ -6,16 +6,16 @@ namespace LagalerieFurniture.Services;
 
 public class UserPermissionService : IUserPermissionService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<UserPermissionService> _logger;
 
     public UserPermissionService(
-        ApplicationDbContext context,
+        IDbContextFactory<ApplicationDbContext> contextFactory,
         IHttpContextAccessor httpContextAccessor,
         ILogger<UserPermissionService> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
     }
@@ -23,7 +23,8 @@ public class UserPermissionService : IUserPermissionService
     /// <inheritdoc/>
     public async Task<List<UserPermissionDto>> GetUserPermissionsAsync(int userId)
     {
-        return await _context.UserPermissions
+        using var context = _contextFactory.CreateDbContext();
+        return await context.UserPermissions
             .AsNoTracking()
             .Where(up => up.UserId == userId)
             .Select(up => new UserPermissionDto
@@ -43,11 +44,12 @@ public class UserPermissionService : IUserPermissionService
     /// <inheritdoc/>
     public async Task<List<PermissionMatrixItem>> GetUserPermissionMatrixAsync(int userId)
     {
-        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
+        using var context = _contextFactory.CreateDbContext();
+        var user = await context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
         if (user == null) return new List<PermissionMatrixItem>();
 
         // صلاحيات الدور
-        var roleGranted = await _context.RolePermissions
+        var roleGranted = await context.RolePermissions
             .AsNoTracking()
             .Where(rp => rp.RoleId == user.RoleId && rp.IsGranted)
             .Select(rp => rp.PermissionId)
@@ -55,7 +57,7 @@ public class UserPermissionService : IUserPermissionService
         var roleSet = roleGranted.ToHashSet();
 
         // الاستثناءات الشخصية
-        var overrides = await _context.UserPermissions
+        var overrides = await context.UserPermissions
             .AsNoTracking()
             .Where(up => up.UserId == userId)
             .ToDictionaryAsync(up => up.PermissionId);
@@ -63,7 +65,7 @@ public class UserPermissionService : IUserPermissionService
         var now = DateTime.UtcNow;
 
         // كل الصلاحيات مع موديولاتها
-        var perms = await _context.Permissions
+        var perms = await context.Permissions
             .AsNoTracking()
             .OrderBy(p => p.Module.SortOrder).ThenBy(p => p.Category).ThenBy(p => p.Id)
             .Select(p => new
@@ -111,15 +113,16 @@ public class UserPermissionService : IUserPermissionService
     /// <inheritdoc/>
     public async Task<(bool Success, string? Error)> SetUserOverridesAsync(int userId, List<UserOverrideInput> overrides, int actedById)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
+        using var context = _contextFactory.CreateDbContext();
+        var user = await context.Users.FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
         if (user == null)
             return (false, "المستخدم غير موجود");
 
         // خريطة كود ← id
-        var codeToId = await _context.Permissions.AsNoTracking()
+        var codeToId = await context.Permissions.AsNoTracking()
             .ToDictionaryAsync(p => p.Code, p => p.Id, StringComparer.OrdinalIgnoreCase);
 
-        var existing = await _context.UserPermissions.Where(up => up.UserId == userId).ToListAsync();
+        var existing = await context.UserPermissions.Where(up => up.UserId == userId).ToListAsync();
         var existingByPermId = existing.ToDictionary(up => up.PermissionId);
 
         var now = DateTime.UtcNow;
@@ -142,7 +145,7 @@ public class UserPermissionService : IUserPermissionService
             }
             else
             {
-                _context.UserPermissions.Add(new UserPermission
+                context.UserPermissions.Add(new UserPermission
                 {
                     UserId = userId,
                     PermissionId = permId,
@@ -156,17 +159,17 @@ public class UserPermissionService : IUserPermissionService
             }
         }
 
-        // احذف أي استثناءات مكنتش في القائمة الجديدة
+        // احذف أي استثناءات مكنشت في القائمة الجديدة
         var toRemove = existing.Where(up => !desiredPermIds.Contains(up.PermissionId)).ToList();
         foreach (var up in toRemove)
-            _context.UserPermissions.Remove(up);
+            context.UserPermissions.Remove(up);
 
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         // سجل تدقيق
         try
         {
-            _context.PermissionAuditLogs.Add(new PermissionAuditLog
+            context.PermissionAuditLogs.Add(new PermissionAuditLog
             {
                 UserId = actedById,
                 TargetUserId = userId,
@@ -175,7 +178,7 @@ public class UserPermissionService : IUserPermissionService
                 IpAddress = _httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString(),
                 CreatedAt = now
             });
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
         }
         catch (Exception ex)
         {

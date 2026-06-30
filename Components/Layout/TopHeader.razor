@@ -1,20 +1,24 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Routing
+@using LagalerieFurniture.Services
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
+@inject UserInfoService UserInfoService
 @inject ThemeService ThemeService
 @inject IMenuService MenuService
+@inject IAuthService AuthService
+@inject ILogger<TopHeader> Logger
 
-<MudAppBar Elevation="0" Class="glass-appbar">
+<MudAppBar Elevation="0" Class="glass-appbar" Style="height: 68px;">
     <div class="appbar-inner">
-        @* القسم الأيسر: Menu Toggle + Logo + Breadcrumbs *@
+        @* القسم الأيمن *@
         <div class="appbar-left">
-            <MudIconButton Icon="@Icons.Material.Filled.Menu" 
-                          OnClick="ToggleDrawer" 
-                          Color="Color.Inherit" 
+            <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                          OnClick="ToggleDrawer"
+                          Color="Color.Inherit"
                           Class="appbar-menu-btn" />
-            
+
             <div class="appbar-brand">
                 <span class="appbar-brand-icon">🪑</span>
                 <span class="appbar-brand-text">Lagalerie</span>
@@ -25,24 +29,21 @@
             </div>
         </div>
 
-        @* القسم الأيمن: بحث + إشعارات + ثيم + مستخدم *@
+        @* القسم الأيسر *@
         <div class="appbar-right">
-            @* البحث *@
             <div class="appbar-search-wrapper">
-                <MudTextField @bind-Value="_searchQuery"
+                <MudTextField T="string" @bind-Value="_searchQuery"
                              Placeholder="بحث سريع..."
                              Variant="Variant.Outlined"
-                             Size="Size.Small"
                              Class="appbar-search"
                              InputType="InputType.Search"
                              AdornmentIcon="@Icons.Material.Filled.Search"
                              Adornment="Adornment.Start" />
             </div>
 
-            @* الإشعارات *@
-            <div class="appbar-action-item notification-btn-wrapper" @onclick="() => {}">
-                <MudIconButton Icon="@Icons.Material.Filled.Notifications" 
-                              Color="Color.Inherit" 
+            <div class="notification-btn-wrapper">
+                <MudIconButton Icon="@Icons.Material.Filled.Notifications"
+                              Color="Color.Inherit"
                               Class="appbar-icon-btn" />
                 @if (_notificationCount > 0)
                 {
@@ -51,55 +52,61 @@
                 }
             </div>
 
-            @* تبديل الثيم *@
             <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
                           OnClick="ToggleTheme"
                           Color="Color.Inherit"
                           Class="appbar-icon-btn theme-toggle-btn" />
 
-            @* المستخدم *@
-            <MudMenu Class="user-menu-wrapper" 
-                     Direction="Direction.Right"
-                     OffsetY="true"
-                     FullWidth="false">
-                <ActivatorContent>
-                    <div class="user-menu-trigger">
-                        <div class="user-avatar-wrapper">
-                            <MudAvatar Class="user-avatar" Size="Size.Small">
-                                @_currentUsername[..1]
+            <MudTooltip Text="تسجيل الخروج">
+                <MudIconButton Icon="@Icons.Material.Filled.Logout"
+                              OnClick="Logout"
+                              Color="Color.Error"
+                              Class="appbar-icon-btn" />
+            </MudTooltip>
+
+            @if (_isAuthenticated)
+            {
+                <MudMenu Class="user-menu-wrapper" Anchor="Origin.BottomLeft">
+                    <ActivatorContent>
+                        <div class="user-menu-trigger">
+                            <div class="user-avatar-wrapper">
+                                <MudAvatar Class="user-avatar" Size="Size.Small" Style="background: var(--primary-gold); color: #000;">
+                                    @(GetInitials(_currentUsername))
+                                </MudAvatar>
+                                <div class="user-status-dot"></div>
+                            </div>
+                            <div class="user-info-text">
+                                <span class="user-display-name">@_currentUsername</span>
+                                <span class="user-role-badge">@_userRole</span>
+                            </div>
+                            <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="user-dropdown-icon" />
+                        </div>
+                    </ActivatorContent>
+                    <ChildContent>
+                        <div class="user-menu-header" Style="padding: 16px; display: flex; gap: 12px; align-items: center;">
+                            <MudAvatar Size="Size.Medium" Style="background: var(--primary-gold); color: #000;">
+                                @(GetInitials(_currentUsername))
                             </MudAvatar>
-                            <div class="user-status-dot"></div>
+                            <div>
+                                <MudText Typo="Typo.subtitle2">@_currentUsername</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@_userRole</MudText>
+                            </div>
                         </div>
-                        <div class="user-info-text">
-                            <span class="user-display-name">@_currentUsername</span>
-                            <span class="user-role-badge">@_userRole</span>
-                        </div>
-                        <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="user-dropdown-icon" />
-                    </div>
-                </ActivatorContent>
-                <ChildContent>
-                    <div class="user-menu-header">
-                        <MudAvatar Size="Size.Medium" Class="user-menu-avatar">
-                            @_currentUsername[..1]
-                        </MudAvatar>
-                        <div>
-                            <MudText Typo="Typo.subtitle2">@_currentUsername</MudText>
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">@_userRole</MudText>
-                        </div>
-                    </div>
-                    <MudDivider />
-                    <MudMenuItem OnClick="GoToProfile" Icon="@Icons.Material.Filled.Person">
-                        <MudText>الملف الشخصي</MudText>
-                    </MudMenuItem>
-                    <MudMenuItem OnClick="GoToSettings" Icon="@Icons.Material.Filled.Settings">
-                        <MudText>الإعدادات</MudText>
-                    </MudMenuItem>
-                    <MudDivider />
-                    <MudMenuItem OnClick="Logout" Icon="@Icons.Material.Filled.Logout" Color="Color.Error">
-                        <MudText Color="Color.Error">تسجيل الخروج</MudText>
-                    </MudMenuItem>
-                </ChildContent>
-            </MudMenu>
+                        <MudDivider />
+                        <MudMenuItem OnClick="GoToProfile" Icon="@Icons.Material.Filled.Person">الملف الشخصي</MudMenuItem>
+                        <MudMenuItem OnClick="GoToSettings" Icon="@Icons.Material.Filled.Settings">الإعدادات</MudMenuItem>
+                        <MudDivider />
+                        <MudMenuItem OnClick="Logout" Icon="@Icons.Material.Filled.Logout" Style="color: var(--error);">تسجيل الخروج</MudMenuItem>
+                    </ChildContent>
+                </MudMenu>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GoToLogin"
+                           StartIcon="@Icons.Material.Filled.Login">
+                    دخول
+                </MudButton>
+            }
         </div>
     </div>
 </MudAppBar>
@@ -109,26 +116,46 @@
 
     private string _currentUsername = "مستخدم";
     private string _userRole = "";
+    private bool _isAuthenticated = false;
     private bool _isDarkMode = true;
     private int _notificationCount = 0;
     private string _searchQuery = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-
-        if (user.Identity?.IsAuthenticated == true)
+        try
         {
-            _currentUsername = user.FindFirst(ClaimTypes.GivenName)?.Value
-                             ?? user.Identity.Name
-                             ?? "مستخدم";
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            _isAuthenticated = user.Identity?.IsAuthenticated == true;
+            _currentUsername = user.FindFirst(ClaimTypes.GivenName)?.Value ?? user.Identity?.Name ?? "مستخدم";
             _userRole = user.FindFirst(ClaimTypes.Role)?.Value ?? "";
-            var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (int.TryParse(userIdClaim, out var userId))
+
+            if (!_isAuthenticated)
             {
-                _notificationCount = await MenuService.GetUnreadNotificationCountAsync(userId);
+                var userInfo = await UserInfoService.GetCurrentUserAsync();
+                if (userInfo != null)
+                {
+                    _isAuthenticated = true;
+                    _currentUsername = userInfo.DisplayName ?? userInfo.Username ?? "مستخدم";
+                    _userRole = userInfo.Role ?? "";
+                }
             }
+
+            if (_isAuthenticated)
+            {
+                var userInfo = await UserInfoService.GetCurrentUserAsync();
+                var userId = userInfo?.UserId ?? 0;
+                if (userId > 0)
+                {
+                    _notificationCount = await MenuService.GetUnreadNotificationCountAsync(userId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[TopHeader] فشل تحميل حالة المصادقة");
         }
     }
 
@@ -149,32 +176,39 @@
         await ThemeService.SetDarkModeAsync(_isDarkMode);
     }
 
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private void GoToLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+    private void GoToProfile() => Navigation.NavigateTo("/profile");
+    private void GoToSettings() => Navigation.NavigateTo("/settings");
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 1 ? $"{parts[0][0]}{parts[1][0]}" : name[..1];
+    }
+
     private string GetBreadcrumbText()
     {
         var uri = Navigation.ToBaseRelativePath(Navigation.Uri);
         if (string.IsNullOrEmpty(uri) || uri == "/") return "لوحة التحكم";
 
-        var segments = uri.Split('/');
-        var breadcrumbs = segments.Select(s =>
+        var segments = uri.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var breadcrumbs = segments.Select(s => s switch
         {
-            return s switch
-            {
-                "users" => "المستخدمون", "roles" => "الأدوار",
-                "invoices" => "الفواتير", "customers" => "العملاء",
-                "orders" => "الطلبات", "inventory" => "المخزون",
-                "warehouses" => "المستودعات", "suppliers" => "الموردين",
-                "production-orders" => "أوامر الإنتاج", "quality" => "الجودة",
-                "accounts" => "الحسابات", "expenses" => "المصروفات",
-                "reports" => "التقارير", "settings" => "الإعدادات",
-                "profile" => "الملف الشخصي", "create" => "جديد", "edit" => "تعديل",
-                _ => s
-            };
+            "users" => "المستخدمون", "roles" => "الأدوار",
+            "invoices" => "الفواتير", "customers" => "العملاء",
+            "orders" => "الطلبات", "inventory" => "المخزون",
+            "production-orders" => "أوامر الإنتاج", "reports" => "التقارير",
+            "settings" => "الإعدادات", "profile" => "الملف الشخصي",
+            "create" => "جديد", "edit" => "تعديل",
+            _ => s
         });
-        return string.Join(" › ", breadcrumbs);
+        return "الرئيسية › " + string.Join(" › ", breadcrumbs);
     }
-
-    private void GoToProfile() => Navigation.NavigateTo("/profile");
-    private void GoToSettings() => Navigation.NavigateTo("/settings");
-    private void Logout() => Navigation.NavigateTo("/api/auth/logout", forceLoad: true);
 }
-

@@ -2,7 +2,7 @@
 @using LagalerieFurniture.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
-@attribute [Authorize(Policy = "users.permissions")]
+@attribute [Authorize(Policy = "SET_VIEW")]
 @inject IUserPermissionService UserPermService
 @inject IUserService UserService
 @inject ISnackbar Snackbar

@@ -3,81 +3,96 @@
 @using System.Linq
 @using System.Security.Claims
 @inject IAuthService AuthService
+@inject UserInfoService UserInfoService
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ThemeService ThemeService
 @inject IMenuService MenuService
+@inject ILogger<MainLayout> Logger
 @inherits LayoutComponentBase
 
-<MudThemeProvider @bind-IsDarkMode="_isDarkMode" />
-<MudPopoverProvider />
-<MudDialogProvider />
-<MudSnackbarProvider />
+@if (!_authChecked)
+{
+    <div class="loading-overlay">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+        <MudText Typo="Typo.body1" Class="mt-4" Style="color: var(--primary-gold);">جاري تحميل النظام...</MudText>
+    </div>
+}
+else
+{
+    <MudThemeProvider @bind-IsDarkMode="_isDarkMode" />
+    <MudPopoverProvider />
+    <MudDialogProvider />
+    <MudSnackbarProvider />
 
-<MudLayout>
-    <TopHeader ToggleDrawerCallback="ToggleDrawer" />
+    <MudRTLProvider>
+        <MudLayout>
+            <TopHeader ToggleDrawerCallback="ToggleDrawer" />
 
-    <MudDrawer @bind-Open="_drawerOpen"
-               Variant="DrawerVariant.Responsive"
-               ClipMode="DrawerClipMode.Always"
-               Elevation="0"
-               Anchor="Anchor.End"
-               Class="glass-drawer">
-        <SidebarMenu @bind-IsMiniMode="_isMiniMode" />
-    </MudDrawer>
+            <MudDrawer @bind-Open="_drawerOpen"
+                       Variant="DrawerVariant.Responsive"
+                       ClipMode="DrawerClipMode.Always"
+                       Elevation="0"
+                       Anchor="Anchor.End"
+                       Width="280px"
+                       Class="glass-drawer">
+                <SidebarMenu @bind-IsMiniMode="_isMiniMode" />
+            </MudDrawer>
 
-    <MudMainContent Class="main-content-area"
-                     Style="background: var(--bg-dark); min-height: 100vh;">
-        <div class="main-content-inner">
-            <div class="page-header">
-                <div class="page-header-greeting">
-                    <MudText Typo="Typo.h5" Style="font-weight: 700; color: var(--text-primary);">
-                        @_greetingText
-                    </MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        @_currentDate
-                    </MudText>
+            <MudMainContent Class="main-content-area">
+                <div class="main-content-inner">
+                    @Body
                 </div>
-            </div>
-            <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="pa-6 fade-in">
-                @Body
-            </MudContainer>
-        </div>
-    </MudMainContent>
-</MudLayout>
+            </MudMainContent>
+        </MudLayout>
+    </MudRTLProvider>
+}
 
 @code {
     private string _currentUsername = string.Empty;
     private bool _drawerOpen = true;
     private bool _isDarkMode = true;
     private bool _isMiniMode = false;
-    private string _greetingText = "";
-    private string _currentDate = "";
+    private bool _authChecked = false;
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-
-        if (!(user.Identity?.IsAuthenticated ?? false))
+        try
         {
-            Navigation.NavigateTo("/login", true);
-            return;
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            bool isAuthenticated = user.Identity?.IsAuthenticated == true;
+
+            if (!isAuthenticated)
+            {
+                var userInfo = await UserInfoService.GetCurrentUserAsync();
+                if (userInfo != null)
+                {
+                    isAuthenticated = true;
+                    _currentUsername = userInfo.DisplayName ?? userInfo.Username ?? "مستخدم";
+                }
+            }
+            else
+            {
+                _currentUsername = user.FindFirst(ClaimTypes.GivenName)?.Value
+                                 ?? user.Identity?.Name
+                                 ?? "مستخدم";
+            }
+
+            if (!isAuthenticated)
+            {
+                Navigation.NavigateTo("/login", forceLoad: true);
+                return;
+            }
+
+            _authChecked = true;
         }
-
-        _currentUsername = user.FindFirst(ClaimTypes.GivenName)?.Value
-                         ?? user.Identity?.Name
-                         ?? "User";
-
-        var hour = DateTime.Now.Hour;
-        _greetingText = (hour switch
+        catch (Exception ex)
         {
-            >= 5 and < 12 => "Good Morning";
-            >= 12 and < 17 => "Good Afternoon";
-            _ => "Good Evening";
-        }) + $", {_currentUsername}";
-
-        _currentDate = DateTime.Now.ToString("dddd, d MMMM yyyy");
+            Logger.LogError(ex, "[MainLayout] فشل في OnInitializedAsync");
+            _authChecked = true;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -85,10 +100,10 @@
         if (firstRender)
         {
             _isDarkMode = await ThemeService.IsDarkModeAsync();
+            _isMiniMode = await MenuService.GetSidebarMiniModeAsync();
             StateHasChanged();
         }
     }
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 }
-

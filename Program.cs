@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using LagalerieFurniture.Components;
 using LagalerieFurniture.Data;
@@ -6,6 +7,7 @@ using LagalerieFurniture.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using MudBlazor;
@@ -23,6 +25,29 @@ if (args.Length > 0 && args[0] == "migrate-passwords")
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Cascading authentication state for Blazor Server
+builder.Services.AddCascadingAuthenticationState();
+
+// ============================================================
+// Globalization & RTL — ضبط اللغة العربية والاتجاه من اليمين
+// ============================================================
+var supportedCultures = new[]
+{
+    new CultureInfo("ar-EG"),
+    new CultureInfo("en-US")
+};
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    options.DefaultRequestCulture = new RequestCulture("ar-EG");
+    options.SupportedCultures = supportedCultures;
+    options.SupportedUICultures = supportedCultures;
+    options.RequestCultureProviders.Insert(0, new CookieRequestCultureProvider());
+});
+
+// إعداد CultureInfo الافتراضي للتطبيق كله (decimal/dates)
+CultureInfo.DefaultThreadCurrentCulture = new CultureInfo("ar-EG");
+CultureInfo.DefaultThreadCurrentUICulture = new CultureInfo("ar-EG");
 
 // HttpClient for internal API calls (Login.razor → /api/auth/token)
 builder.Services.AddHttpClient();
@@ -51,15 +76,19 @@ builder.Services.AddAuthorization(options =>
 });
 
 // Database - with retry on failure for remote connections
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
+// نستخدم AddDbContextFactory (مسجّل كـ Singleton) عشان كل عملية DB تـ create
+// DbContext مستقل. ده ضروري في Blazor Server عشان نتجنب مشكلة
+// "A second operation was started on this context instance" اللي بتحصل
+// لما الـ components بتـ share نفس الـ Scoped DbContext بشكل متوازي.
+builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection"),
         sqlOptions => sqlOptions.EnableRetryOnFailure(
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(30),
             errorNumbersToAdd: null)
-    )
-);
+    ),
+    ServiceLifetime.Scoped);
 
 // MudBlazor Theme Configuration
 builder.Services.AddMudServices(config =>
@@ -145,6 +174,8 @@ builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<UserInfoService>();
 
 // Authorization policy provider + handler (dynamic permission policies)
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
@@ -158,6 +189,9 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
 }
+
+// تفعيل Localization قبل كل الـ middlewares التانية
+app.UseRequestLocalization();
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
@@ -258,6 +292,49 @@ app.MapGet("/api/auth/logout", async (HttpContext context) =>
 {
     await context.SignOutAsync("LagalerieCookie");
     return Results.Redirect("/login");
+}).RequireAuthorization();
+
+// ============================================================
+// GET /api/auth/me — يرجّع بيانات المستخدم الحالي من الـ cookie
+// ضروري لـ Blazor Server circuit حيث HttpContext = null
+// ============================================================
+app.MapGet("/api/auth/me", async (
+    HttpContext context,
+    ApplicationDbContext db,
+    IPermissionService permissionService,
+    ILogger<Program> logger) =>
+{
+    var user = context.User;
+    if (user?.Identity?.IsAuthenticated != true)
+    {
+        logger.LogDebug("/api/auth/me: not authenticated");
+        return Results.Unauthorized();
+    }
+
+    var userIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (!int.TryParse(userIdStr, out var userId))
+    {
+        logger.LogWarning("/api/auth/me: invalid userId claim = {Claim}", userIdStr);
+        return Results.Unauthorized();
+    }
+
+    // نرجّع الـ user info + كل الـ claims
+    var claims = user.Claims.Select(c => new { c.Type, c.Value }).ToList();
+    var permissionCodes = await permissionService.GetEffectivePermissionCodesAsync(userId);
+
+    logger.LogDebug("/api/auth/me: returning {ClaimCount} claims for userId={UserId}",
+        claims.Count, userId);
+
+    return Results.Ok(new
+    {
+        UserId = userId,
+        Username = user.FindFirst(ClaimTypes.Name)?.Value,
+        DisplayName = user.FindFirst(ClaimTypes.GivenName)?.Value,
+        Email = user.FindFirst(ClaimTypes.Email)?.Value,
+        Role = user.FindFirst(ClaimTypes.Role)?.Value,
+        Claims = claims,
+        Permissions = permissionCodes
+    });
 }).RequireAuthorization();
 
 // POST /api/auth/token — ينشئ token مؤقت للاستخدام في الـ redirect
