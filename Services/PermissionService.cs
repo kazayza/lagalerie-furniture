@@ -231,6 +231,11 @@ public class PermissionService : IPermissionService
         {
             new() { Label = "لوحة التحكم", Href = "/", Icon = Icons.Material.Filled.Dashboard, PermissionCode = "DASH_VIEW" }
         },
+        "Security" => new()
+{
+    new() { Label = "المستخدمون", Href = "/users", Icon = Icons.Material.Filled.People, PermissionCode = "USR_VIEW" },
+    new() { Label = "الأدوار", Href = "/roles", Icon = Icons.Material.Filled.ManageAccounts, PermissionCode = "ROLE_VIEW" },
+},
         // Users module مش موجود في DB — نضيفه يدوياً مع ربطه بصلاحية SET_VIEW
         "Users" => new()
         {

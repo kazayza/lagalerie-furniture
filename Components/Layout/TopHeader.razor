@@ -20,7 +20,7 @@
                           Class="appbar-menu-btn" />
 
             <div class="appbar-brand">
-                <span class="appbar-brand-icon">🪑</span>
+                <span class="appbar-brand-logo" role="img" aria-label="Lagalerie"></span>
                 <span class="appbar-brand-text">Lagalerie</span>
             </div>
 
@@ -41,21 +41,38 @@
                              Adornment="Adornment.Start" />
             </div>
 
-            <div class="notification-btn-wrapper">
-                <MudIconButton Icon="@Icons.Material.Filled.Notifications"
-                              Color="Color.Inherit"
-                              Class="appbar-icon-btn" />
-                @if (_notificationCount > 0)
-                {
-                    <span class="notification-pulse"></span>
-                    <span class="notification-badge">@_notificationCount</span>
-                }
-            </div>
+            <MudTooltip Text="البريد الداخلي">
+                <div class="notification-btn-wrapper" @onclick="GoToMail">
+                    <MudIconButton Icon="@Icons.Material.Filled.MarkEmailUnread"
+                                  Color="Color.Inherit"
+                                  Class="appbar-icon-btn mail-icon-btn" />
+                    @if (_mailCount > 0)
+                    {
+                        <span class="notification-pulse"></span>
+                        <span class="notification-badge mail">@_mailCount</span>
+                    }
+                </div>
+            </MudTooltip>
 
-            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
-                          OnClick="ToggleTheme"
-                          Color="Color.Inherit"
-                          Class="appbar-icon-btn theme-toggle-btn" />
+            <MudTooltip Text="الإشعارات">
+                <div class="notification-btn-wrapper">
+                    <MudIconButton Icon="@Icons.Material.Filled.Notifications"
+                                  Color="Color.Inherit"
+                                  Class="appbar-icon-btn" />
+                    @if (_notificationCount > 0)
+                    {
+                        <span class="notification-pulse"></span>
+                        <span class="notification-badge">@_notificationCount</span>
+                    }
+                </div>
+            </MudTooltip>
+
+            <MudTooltip Text="@(_isDarkMode ? "الوضع النهاري" : "الوضع الليلي")">
+                <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                              OnClick="ToggleTheme"
+                              Color="Color.Inherit"
+                              Class="appbar-icon-btn theme-toggle-btn" />
+            </MudTooltip>
 
             <MudTooltip Text="تسجيل الخروج">
                 <MudIconButton Icon="@Icons.Material.Filled.Logout"
@@ -66,39 +83,75 @@
 
             @if (_isAuthenticated)
             {
-                <MudMenu Class="user-menu-wrapper" Anchor="Origin.BottomLeft">
-                    <ActivatorContent>
-                        <div class="user-menu-trigger">
-                            <div class="user-avatar-wrapper">
-                                <MudAvatar Class="user-avatar" Size="Size.Small" Style="background: var(--primary-gold); color: #000;">
-                                    @(GetInitials(_currentUsername))
-                                </MudAvatar>
-                                <div class="user-status-dot"></div>
-                            </div>
-                            <div class="user-info-text">
-                                <span class="user-display-name">@_currentUsername</span>
-                                <span class="user-role-badge">@_userRole</span>
-                            </div>
-                            <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="user-dropdown-icon" />
+                <div class="user-dropdown-host">
+                    <button type="button"
+                            class="user-menu-trigger premium-user-trigger"
+                            aria-haspopup="true"
+                            aria-expanded="@_isUserMenuOpen"
+                            @onclick="ToggleUserMenu">
+                        <div class="user-avatar-wrapper">
+                            @if (!string.IsNullOrWhiteSpace(_avatarUrl))
+                            {
+                                <img src="@_avatarUrl" class="topbar-user-photo" alt="@_currentUsername" />
+                            }
+                            else
+                            {
+                                <div class="topbar-user-photo fallback">@GetInitials(_currentUsername)</div>
+                            }
+                            <div class="user-status-dot"></div>
                         </div>
-                    </ActivatorContent>
-                    <ChildContent>
-                        <div class="user-menu-header" Style="padding: 16px; display: flex; gap: 12px; align-items: center;">
-                            <MudAvatar Size="Size.Medium" Style="background: var(--primary-gold); color: #000;">
-                                @(GetInitials(_currentUsername))
-                            </MudAvatar>
-                            <div>
-                                <MudText Typo="Typo.subtitle2">@_currentUsername</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">@_userRole</MudText>
-                            </div>
+                        <div class="user-info-text">
+                            <span class="user-display-name">@_currentUsername</span>
+                            <span class="user-role-badge">@_userRole</span>
                         </div>
-                        <MudDivider />
-                        <MudMenuItem OnClick="GoToProfile" Icon="@Icons.Material.Filled.Person">الملف الشخصي</MudMenuItem>
-                        <MudMenuItem OnClick="GoToSettings" Icon="@Icons.Material.Filled.Settings">الإعدادات</MudMenuItem>
-                        <MudDivider />
-                        <MudMenuItem OnClick="Logout" Icon="@Icons.Material.Filled.Logout" Style="color: var(--error);">تسجيل الخروج</MudMenuItem>
-                    </ChildContent>
-                </MudMenu>
+                        <MudIcon Icon="@Icons.Material.Filled.KeyboardArrowDown" Size="Size.Small" Class="user-dropdown-icon" />
+                    </button>
+
+                    @if (_isUserMenuOpen)
+                    {
+                        <div class="premium-user-dropdown-panel">
+                            <div class="premium-user-menu-header">
+                                <div class="user-avatar-wrapper big">
+                                    @if (!string.IsNullOrWhiteSpace(_avatarUrl))
+                                    {
+                                        <img src="@_avatarUrl" class="topbar-user-photo big" alt="@_currentUsername" />
+                                    }
+                                    else
+                                    {
+                                        <div class="topbar-user-photo big fallback">@GetInitials(_currentUsername)</div>
+                                    }
+                                    <div class="user-status-dot"></div>
+                                </div>
+                                <div>
+                                    <div class="premium-user-name">@_currentUsername</div>
+                                    <div class="premium-user-role">@_userRole</div>
+                                </div>
+                            </div>
+
+                            <div class="premium-user-menu-divider"></div>
+
+                            <button type="button" class="premium-user-menu-item" @onclick="GoToProfile">
+                                <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />
+                                <span>الملف الشخصي</span>
+                            </button>
+                            <button type="button" class="premium-user-menu-item" @onclick="GoToMail">
+                                <MudIcon Icon="@Icons.Material.Filled.Mail" Size="Size.Small" />
+                                <span>البريد الداخلي</span>
+                            </button>
+                            <button type="button" class="premium-user-menu-item" @onclick="GoToSettings">
+                                <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Small" />
+                                <span>الإعدادات</span>
+                            </button>
+
+                            <div class="premium-user-menu-divider"></div>
+
+                            <button type="button" class="premium-user-menu-item danger" @onclick="Logout">
+                                <MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Small" />
+                                <span>تسجيل الخروج</span>
+                            </button>
+                        </div>
+                    }
+                </div>
             }
             else
             {
@@ -118,8 +171,11 @@
     private string _userRole = "";
     private bool _isAuthenticated = false;
     private bool _isDarkMode = true;
+    private bool _isUserMenuOpen = false;
     private int _notificationCount = 0;
+    private int _mailCount = 0;
     private string _searchQuery = string.Empty;
+    private string? _avatarUrl;
 
     protected override async Task OnInitializedAsync()
     {
@@ -131,6 +187,7 @@
             _isAuthenticated = user.Identity?.IsAuthenticated == true;
             _currentUsername = user.FindFirst(ClaimTypes.GivenName)?.Value ?? user.Identity?.Name ?? "مستخدم";
             _userRole = user.FindFirst(ClaimTypes.Role)?.Value ?? "";
+            _avatarUrl = user.FindFirst("avatar")?.Value;
 
             if (!_isAuthenticated)
             {
@@ -140,6 +197,7 @@
                     _isAuthenticated = true;
                     _currentUsername = userInfo.DisplayName ?? userInfo.Username ?? "مستخدم";
                     _userRole = userInfo.Role ?? "";
+                    _avatarUrl = userInfo.AvatarUrl;
                 }
             }
 
@@ -150,6 +208,9 @@
                 if (userId > 0)
                 {
                     _notificationCount = await MenuService.GetUnreadNotificationCountAsync(userId);
+                    _mailCount = 0; // TODO: يتم ربطه لاحقاً بخدمة البريد الداخلي
+                    if (string.IsNullOrWhiteSpace(_avatarUrl))
+                        _avatarUrl = userInfo?.AvatarUrl;
                 }
             }
         }
@@ -164,6 +225,7 @@
         if (firstRender)
         {
             _isDarkMode = await ThemeService.IsDarkModeAsync();
+            await ThemeService.ApplyThemeClassAsync(_isDarkMode);
             StateHasChanged();
         }
     }
@@ -174,6 +236,7 @@
     {
         _isDarkMode = !_isDarkMode;
         await ThemeService.SetDarkModeAsync(_isDarkMode);
+        await ThemeService.ApplyThemeClassAsync(_isDarkMode);
     }
 
     private async Task Logout()
@@ -182,9 +245,28 @@
         Navigation.NavigateTo("/login", forceLoad: true);
     }
 
+    private void ToggleUserMenu() => _isUserMenuOpen = !_isUserMenuOpen;
+    private void CloseUserMenu() => _isUserMenuOpen = false;
+
     private void GoToLogin() => Navigation.NavigateTo("/login", forceLoad: true);
-    private void GoToProfile() => Navigation.NavigateTo("/profile");
-    private void GoToSettings() => Navigation.NavigateTo("/settings");
+
+    private void GoToProfile()
+    {
+        CloseUserMenu();
+        Navigation.NavigateTo("/profile");
+    }
+
+    private void GoToSettings()
+    {
+        CloseUserMenu();
+        Navigation.NavigateTo("/settings");
+    }
+
+    private void GoToMail()
+    {
+        CloseUserMenu();
+        Navigation.NavigateTo("/mail");
+    }
 
     private static string GetInitials(string name)
     {

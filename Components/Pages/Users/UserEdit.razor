@@ -4,104 +4,223 @@
 @using LagalerieFurniture.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@attribute [Authorize]
 @inject IUserService UserService
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IWebHostEnvironment WebHostEnvironment
 
 <PageTitle>@(_isEdit ? "تعديل مستخدم" : "مستخدم جديد") - Lagalerie</PageTitle>
 
-<MudText Typo="Typo.h5" Style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">
-    @(_isEdit ? "✏️ تعديل مستخدم" : "➕ مستخدم جديد")
-</MudText>
-<MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-bottom: 24px;">
-    @(_isEdit ? "تعديل بيانات المستخدم" : "إنشاء حساب مستخدم جديد وتعيين دوره")
-</MudText>
-
 @if (_loading)
 {
-    <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" Class="d-block mx-auto my-8" />
+    <div class="loading-overlay">
+        <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+        <MudText Typo="Typo.body1" Class="mt-4" Style="color: var(--primary-gold);">جاري تحميل بيانات المستخدم...</MudText>
+    </div>
 }
 else
 {
-    <MudPaper Elevation="0" Class="pa-6" Style="background: var(--surface-dark); border: 1px solid var(--border-color); border-radius: 12px; max-width: 800px;">
-        <EditForm Model="@_model" OnValidSubmit="Save">
-            <DataAnnotationsValidator />
-
-            <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: var(--primary-gold);" Class="mb-3">البيانات الأساسية</MudText>
-            <MudGrid Spacing="2">
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_model.FirstName" Label="الاسم الأول" Required="true" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_model.LastName" Label="اسم العائلة" Required="true" Variant="Variant.Outlined" />
-                </MudItem>
-            </MudGrid>
-
-            <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: var(--primary-gold);" Class="mt-4 mb-3">بيانات الدخول</MudText>
-            <MudGrid Spacing="2">
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_model.Username" Label="اسم المستخدم" Required="true" Variant="Variant.Outlined"
-                                  Disabled="@_isEdit" Immediate="true" Validation="@ValidateUsername" />
-                </MudItem>
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_model.Email" Label="البريد الإلكتروني" Required="true" Variant="Variant.Outlined" Immediate="true" Validation="@ValidateEmail" />
-                </MudItem>
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_model.Phone" Label="رقم الهاتف" Variant="Variant.Outlined" />
-                </MudItem>
-                @if (!_isEdit)
-                {
-                    <MudItem xs="12" md="6">
-                        <MudTextField @bind-Value="_model.Password" Label="كلمة المرور" Required="true" InputType="InputType.Password"
-                                      Variant="Variant.Outlined" Immediate="true" Validation="@ValidatePassword" />
-                    </MudItem>
-                }
-            </MudGrid>
-
-            <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: var(--primary-gold);" Class="mt-4 mb-3">الصلاحيات والفرع</MudText>
-            <MudGrid Spacing="2">
-                <MudItem xs="12" md="6">
-                    <MudSelect @bind-Value="_model.RoleId" Label="الدور" Required="true" Variant="Variant.Outlined">
-                        @foreach (var role in _roles)
-                        {
-                            <MudSelectItem Value="@role.Id">@role.DisplayName</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12" md="6">
-                    <MudSelect @bind-Value="_model.DefaultBranchId" Label="الفرع الافتراضي" Variant="Variant.Outlined" Clearable="true">
-                        @foreach (var b in _branches)
-                        {
-                            <MudSelectItem Value="@((int?)b.Id)">@b.Name</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12">
-                    <MudSwitch @bind-Value="_model.IsActive" Label="الحساب نشط" Color="Color.Success" />
-                </MudItem>
-                @if (!_isEdit)
-                {
-                    <MudItem xs="12">
-                        <MudSwitch @bind-Value="_model.MustChangePassword" Label="إلزام المستخدم بتغيير كلمة المرور عند أول دخول" Color="Color.Warning" />
-                    </MudItem>
-                }
-            </MudGrid>
-
-            <div class="d-flex justify-end gap-2 mt-6">
-                <MudButton Variant="Variant.Text" OnClick="Cancel">إلغاء</MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" Type="@ButtonType.Submit" StartIcon="@Icons.Material.Filled.Save">
-                    حفظ
-                </MudButton>
+    <div class="security-form-shell">
+        <section class="security-form-hero">
+            <div>
+                <div class="users-kicker">
+                    <MudIcon Icon="@(_isEdit ? Icons.Material.Filled.EditNote : Icons.Material.Filled.PersonAdd)" Size="Size.Small" />
+                    @(_isEdit ? "تعديل حساب مستخدم" : "إنشاء حساب جديد")
+                </div>
+                <h1>@(_isEdit ? "تعديل مستخدم" : "مستخدم جديد")</h1>
+                <p>
+                    @(_isEdit
+                        ? "حدّث بيانات المستخدم الأساسية، الدور، الفرع الافتراضي وحالة الحساب."
+                        : "أنشئ حساب مستخدم جديد وحدد بيانات الدخول والدور والفرع الافتراضي بشكل آمن.")
+                </p>
             </div>
-        </EditForm>
-    </MudPaper>
+            <div class="security-form-hero-icon">
+                <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" />
+            </div>
+        </section>
+
+        <MudPaper Elevation="0" Class="security-form-card">
+            <EditForm Model="@_model" OnValidSubmit="Save">
+                <DataAnnotationsValidator />
+
+                <div class="user-avatar-editor-panel">
+                    <div class="avatar-preview-frame">
+                        @if (!string.IsNullOrWhiteSpace(_avatarPreviewUrl))
+                        {
+                            <img src="@_avatarPreviewUrl" alt="صورة المستخدم" />
+                        }
+                        else
+                        {
+                            <span>@GetPreviewInitials()</span>
+                        }
+                    </div>
+                    <div class="avatar-editor-content">
+                        <div class="security-section-title compact">
+                            <MudIcon Icon="@Icons.Material.Filled.AccountCircle" Size="Size.Small" />
+                            <span>صورة المستخدم</span>
+                        </div>
+                        <p>اختر صورة مربعة واضحة. يفضل 512×512 بصيغة JPG أو PNG أو WebP وبحجم لا يتجاوز 2MB.</p>
+                        <div class="avatar-editor-actions">
+                            <label class="avatar-upload-button">
+                                <MudIcon Icon="@Icons.Material.Filled.Upload" Size="Size.Small" />
+                                <span>اختيار صورة</span>
+                                <InputFile OnChange="OnAvatarSelected" accept="image/png,image/jpeg,image/webp" />
+                            </label>
+                            @if (!string.IsNullOrWhiteSpace(_model.AvatarUrl) || _avatarFile is not null)
+                            {
+                                <button type="button" class="avatar-remove-button" @onclick="RemoveAvatar">
+                                    <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" />
+                                    <span>إزالة الصورة</span>
+                                </button>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(_avatarError))
+                        {
+                            <div class="avatar-validation-message">@_avatarError</div>
+                        }
+                    </div>
+                </div>
+
+                <div class="security-section-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Badge" Size="Size.Small" />
+                    <span>البيانات الأساسية</span>
+                </div>
+
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_model.FirstName"
+                                      Label="الاسم الأول"
+                                      Required="true"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_model.LastName"
+                                      Label="اسم العائلة"
+                                      Required="true"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+
+                <div class="security-section-title mt-6">
+                    <MudIcon Icon="@Icons.Material.Filled.Login" Size="Size.Small" />
+                    <span>بيانات الدخول</span>
+                </div>
+
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_model.Username"
+                                      Label="اسم المستخدم"
+                                      Required="true"
+                                      Variant="Variant.Outlined"
+                                      Disabled="@_isEdit"
+                                      Immediate="true"
+                                      Validation="@ValidateUsername" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_model.Email"
+                                      Label="البريد الإلكتروني"
+                                      Required="true"
+                                      Variant="Variant.Outlined"
+                                      Immediate="true"
+                                      Validation="@ValidateEmail" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_model.Phone"
+                                      Label="رقم الهاتف"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    @if (!_isEdit)
+                    {
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_model.Password"
+                                          Label="كلمة المرور"
+                                          Required="true"
+                                          InputType="InputType.Password"
+                                          Variant="Variant.Outlined"
+                                          Immediate="true"
+                                          Validation="@ValidatePassword" />
+                        </MudItem>
+                    }
+                </MudGrid>
+
+                <div class="security-section-title mt-6">
+                    <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Size="Size.Small" />
+                    <span>الدور والفرع والحالة</span>
+                </div>
+
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="6">
+                        <MudSelect @bind-Value="_model.RoleId"
+                                   Label="الدور"
+                                   Required="true"
+                                   Variant="Variant.Outlined">
+                            @foreach (var role in _roles)
+                            {
+                                <MudSelectItem Value="@role.Id">@role.DisplayName</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudSelect @bind-Value="_model.DefaultBranchId"
+                                   Label="الفرع الافتراضي"
+                                   Variant="Variant.Outlined"
+                                   Clearable="true">
+                            @foreach (var b in _branches)
+                            {
+                                <MudSelectItem Value="@((int?)b.Id)">@b.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <div class="security-switch-card">
+                            <MudSwitch @bind-Value="_model.IsActive" Label="الحساب نشط" Color="Color.Success" />
+                            <small>عند تعطيل الحساب لن يستطيع المستخدم تسجيل الدخول.</small>
+                        </div>
+                    </MudItem>
+                    @if (!_isEdit)
+                    {
+                        <MudItem xs="12" md="6">
+                            <div class="security-switch-card">
+                                <MudSwitch @bind-Value="_model.MustChangePassword" Label="إلزام تغيير كلمة المرور" Color="Color.Warning" />
+                                <small>يُطلب من المستخدم تغيير كلمة المرور عند أول دخول.</small>
+                            </div>
+                        </MudItem>
+                    }
+                </MudGrid>
+
+                <div class="form-actions">
+                    <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="_saving">
+                        إلغاء
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Type="@ButtonType.Submit"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               Disabled="_saving">
+                        @(_saving ? "جاري الحفظ..." : "حفظ")
+                    </MudButton>
+                </div>
+            </EditForm>
+        </MudPaper>
+    </div>
 }
 
 @code {
     [Parameter] public int Id { get; set; }
+
     private bool _isEdit => Id > 0;
     private bool _loading = true;
+    private bool _saving = false;
+    private bool _canSave = false;
+    private IBrowserFile? _avatarFile;
+    private string? _avatarPreviewUrl;
+    private string? _avatarError;
+    private bool _removeAvatar;
+    private const long MaxAvatarBytes = 2 * 1024 * 1024;
+    private static readonly string[] AllowedAvatarContentTypes = ["image/jpeg", "image/png", "image/webp"];
 
     private UserModel _model = new();
     private List<Role> _roles = new();
@@ -111,7 +230,19 @@ else
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
-        _currentUserId = state.User.GetUserId() ?? 0;
+        var currentUser = state.User;
+        _currentUserId = currentUser.GetUserId() ?? 0;
+
+        _canSave = _isEdit
+            ? currentUser.HasPermission("USR_EDIT")
+            : currentUser.HasPermission("USR_CREATE");
+
+        if (!_canSave)
+        {
+            Snackbar.Add("ليس لديك صلاحية الوصول لهذه الصفحة.", Severity.Warning);
+            Navigation.NavigateTo("/users");
+            return;
+        }
 
         _roles = await UserService.GetActiveRolesAsync();
         _branches = await UserService.GetActiveBranchesAsync();
@@ -119,13 +250,26 @@ else
         if (_isEdit)
         {
             var u = await UserService.GetByIdAsync(Id);
-            if (u == null) { Snackbar.Add("المستخدم غير موجود", Severity.Error); Navigation.NavigateTo("/users"); return; }
+            if (u == null)
+            {
+                Snackbar.Add("المستخدم غير موجود", Severity.Error);
+                Navigation.NavigateTo("/users");
+                return;
+            }
+
             _model = new UserModel
             {
-                FirstName = u.FirstName, LastName = u.LastName, Username = u.Username,
-                Email = u.Email, Phone = u.Phone, RoleId = u.RoleId,
-                DefaultBranchId = u.DefaultBranchId, IsActive = u.IsActive
+                FirstName = u.FirstName,
+                LastName = u.LastName,
+                Username = u.Username,
+                Email = u.Email,
+                Phone = u.Phone,
+                RoleId = u.RoleId,
+                DefaultBranchId = u.DefaultBranchId,
+                IsActive = u.IsActive,
+                AvatarUrl = u.AvatarUrl
             };
+            _avatarPreviewUrl = u.AvatarUrl;
         }
 
         _loading = false;
@@ -133,40 +277,176 @@ else
 
     private async Task Save(EditContext ctx)
     {
-        if (_isEdit)
+        if (!_canSave)
         {
-            var (ok, err) = await UserService.UpdateAsync(new UpdateUserDto
-            {
-                Id = Id, Email = _model.Email!, Phone = _model.Phone,
-                FirstName = _model.FirstName!, LastName = _model.LastName!,
-                RoleId = _model.RoleId, DefaultBranchId = _model.DefaultBranchId
-            }, _currentUserId);
-            if (ok) { Snackbar.Add("تم الحفظ", Severity.Success); Navigation.NavigateTo("/users"); }
-            else Snackbar.Add(err ?? "فشل", Severity.Error);
+            Snackbar.Add("ليس لديك صلاحية تنفيذ هذه العملية.", Severity.Warning);
+            return;
         }
-        else
+
+        _saving = true;
+        try
         {
-            var (ok, err, newId) = await UserService.CreateAsync(new CreateUserDto
+            var avatarUrl = await SaveAvatarIfNeededAsync();
+            if (_avatarError is not null)
+                return;
+
+            _model.AvatarUrl = avatarUrl;
+
+            if (_isEdit)
             {
-                Username = _model.Username!, Email = _model.Email!, Phone = _model.Phone,
-                FirstName = _model.FirstName!, LastName = _model.LastName!,
-                Password = _model.Password!, RoleId = _model.RoleId,
-                DefaultBranchId = _model.DefaultBranchId, IsActive = _model.IsActive,
-                MustChangePassword = _model.MustChangePassword
-            }, _currentUserId);
-            if (ok) { Snackbar.Add("تم إنشاء المستخدم", Severity.Success); Navigation.NavigateTo("/users"); }
-            else Snackbar.Add(err ?? "فشل", Severity.Error);
+                var (ok, err) = await UserService.UpdateAsync(new UpdateUserDto
+                {
+                    Id = Id,
+                    Email = _model.Email!,
+                    Phone = _model.Phone,
+                    FirstName = _model.FirstName!,
+                    LastName = _model.LastName!,
+RoleId = _model.RoleId,
+                    DefaultBranchId = _model.DefaultBranchId,
+                    AvatarUrl = _model.AvatarUrl
+                }, _currentUserId);
+
+                if (ok)
+                {
+                    Snackbar.Add("تم حفظ بيانات المستخدم", Severity.Success);
+                    Navigation.NavigateTo("/users");
+                }
+                else
+                {
+                    Snackbar.Add(err ?? "فشل حفظ بيانات المستخدم", Severity.Error);
+                }
+            }
+            else
+            {
+                var (ok, err, newId) = await UserService.CreateAsync(new CreateUserDto
+                {
+                    Username = _model.Username!,
+                    Email = _model.Email!,
+                    Phone = _model.Phone,
+                    FirstName = _model.FirstName!,
+                    LastName = _model.LastName!,
+                    Password = _model.Password!,
+                    RoleId = _model.RoleId,
+                    DefaultBranchId = _model.DefaultBranchId,
+                    AvatarUrl = _model.AvatarUrl,
+                    IsActive = _model.IsActive,
+                    MustChangePassword = _model.MustChangePassword
+                }, _currentUserId);
+
+                if (ok)
+                {
+                    Snackbar.Add("تم إنشاء المستخدم بنجاح", Severity.Success);
+                    Navigation.NavigateTo("/users");
+                }
+                else
+                {
+                    Snackbar.Add(err ?? "فشل إنشاء المستخدم", Severity.Error);
+                }
+            }
         }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task OnAvatarSelected(InputFileChangeEventArgs e)
+    {
+        _avatarError = null;
+        _removeAvatar = false;
+        _avatarFile = e.File;
+
+        if (_avatarFile.Size > MaxAvatarBytes)
+        {
+            _avatarError = "حجم الصورة يجب ألا يتجاوز 2MB.";
+            _avatarFile = null;
+            return;
+        }
+
+        if (!AllowedAvatarContentTypes.Contains(_avatarFile.ContentType, StringComparer.OrdinalIgnoreCase))
+        {
+            _avatarError = "صيغة الصورة غير مدعومة. استخدم JPG أو PNG أو WebP.";
+            _avatarFile = null;
+            return;
+        }
+
+        var buffer = new byte[_avatarFile.Size];
+        await _avatarFile.OpenReadStream(MaxAvatarBytes).ReadAsync(buffer);
+        _avatarPreviewUrl = $"data:{_avatarFile.ContentType};base64,{Convert.ToBase64String(buffer)}";
+    }
+
+    private void RemoveAvatar()
+    {
+        _avatarError = null;
+        _avatarFile = null;
+        _avatarPreviewUrl = null;
+        _model.AvatarUrl = null;
+        _removeAvatar = true;
+    }
+
+    private async Task<string?> SaveAvatarIfNeededAsync()
+    {
+        _avatarError = null;
+
+        if (_removeAvatar)
+            return null;
+
+        if (_avatarFile is null)
+            return _model.AvatarUrl;
+
+        try
+        {
+            var uploadsRoot = Path.Combine(WebHostEnvironment.WebRootPath, "uploads", "avatars");
+            Directory.CreateDirectory(uploadsRoot);
+
+            var extension = _avatarFile.ContentType.ToLowerInvariant() switch
+            {
+                "image/jpeg" => ".jpg",
+                "image/png" => ".png",
+                "image/webp" => ".webp",
+                _ => null
+            };
+
+            if (extension is null)
+            {
+                _avatarError = "صيغة الصورة غير مدعومة.";
+                return _model.AvatarUrl;
+            }
+
+            var fileName = $"user-{(_isEdit ? Id : 0)}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}{extension}";
+            var filePath = Path.Combine(uploadsRoot, fileName);
+
+            await using var fileStream = File.Create(filePath);
+            await _avatarFile.OpenReadStream(MaxAvatarBytes).CopyToAsync(fileStream);
+
+            return $"/uploads/avatars/{fileName}";
+        }
+        catch (Exception ex)
+        {
+            _avatarError = $"تعذر حفظ الصورة: {ex.Message}";
+            return _model.AvatarUrl;
+        }
+    }
+
+    private string GetPreviewInitials()
+    {
+        var name = $"{_model.FirstName} {_model.LastName}".Trim();
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 1 ? $"{parts[0][0]}{parts[1][0]}" : name[..1];
     }
 
     private void Cancel() => Navigation.NavigateTo("/users");
 
     private IEnumerable<string>? ValidateUsername(string v)
         => string.IsNullOrWhiteSpace(v) ? new[] { "مطلوب" } : null;
+
     private IEnumerable<string>? ValidatePassword(string v)
         => string.IsNullOrWhiteSpace(v) ? new[] { "مطلوب" } : v.Length < 6 ? new[] { "6 أحرف على الأقل" } : null;
+
     private static readonly System.Text.RegularExpressions.Regex EmailRx =
         new("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private IEnumerable<string>? ValidateEmail(string v)
         => string.IsNullOrWhiteSpace(v) ? new[] { "مطلوب" } : !EmailRx.IsMatch(v) ? new[] { "بريد غير صالح" } : null;
 
@@ -180,6 +460,7 @@ else
         public string? Password { get; set; }
         public int RoleId { get; set; }
         public int? DefaultBranchId { get; set; }
+        public string? AvatarUrl { get; set; }
         public bool IsActive { get; set; } = true;
         public bool MustChangePassword { get; set; } = true;
     }

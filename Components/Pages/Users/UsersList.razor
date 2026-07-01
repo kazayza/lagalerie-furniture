@@ -3,7 +3,7 @@
 @using LagalerieFurniture.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
-@attribute [Authorize(Policy = "SET_VIEW")]
+@attribute [Authorize(Policy = "USR_VIEW")]
 @inject IUserService UserService
 @inject IRoleService RoleService
 @inject IDialogService DialogService
@@ -13,147 +13,208 @@
 
 <PageTitle>المستخدمون - Lagalerie</PageTitle>
 
-<div class="page-title-section">
-    <MudText Typo="Typo.h5">
-        <MudIcon Icon="@Icons.Material.Filled.People" Class="text-gold" />
-        إدارة المستخدمين
-    </MudText>
-    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="page-subtitle">
-        عرض وإدارة حسابات المستخدمين وصلاحياتهم في النظام
-    </MudText>
-</div>
+<div class="users-page-shell">
+    <section class="users-hero-panel">
+        <div class="users-hero-content">
+            <div class="users-kicker">
+                <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Size="Size.Small" />
+                مركز الأمان والصلاحيات
+            </div>
+            <h1>إدارة المستخدمين</h1>
+            <p>تحكم كامل في حسابات النظام، حالات الدخول، الأدوار، والاستثناءات الأمنية من شاشة واحدة.</p>
+            <div class="users-hero-actions">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="RefreshAsync" Disabled="_loading">
+                    تحديث
+                </MudButton>
+                @if (_currentUser.HasPermission("USR_CREATE"))
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="OpenCreate">
+                        مستخدم جديد
+                    </MudButton>
+                }
+            </div>
+        </div>
+        <div class="users-hero-orb">
+            <MudIcon Icon="@Icons.Material.Filled.PeopleAlt" />
+        </div>
+    </section>
 
-@* ===== Filter Panel ===== *@
-<div class="filter-panel">
-    <MudGrid Spacing="2" AlignItems="AlignItems.Center">
-        <MudItem xs="12" md="5">
-            <MudTextField @bind-Value="_search" Label="بحث"
-                          Placeholder="اسم المستخدم، البريد، الاسم..."
-                          Variant="Variant.Outlined" Size="Size.Small"
-                          Adornment="Adornment.Start" Immediate="true"
-                          OnAdornmentClick="Search" OnKeyUp="OnSearchKeyUp">
-                <MudIcon Icon="@Icons.Material.Filled.Search" />
-            </MudTextField>
-        </MudItem>
-        <MudItem xs="6" md="3">
-            <MudSelect @bind-Value="_roleIdFilter" Label="الدور" Variant="Variant.Outlined" Size="Size.Small" Clearable="true">
+    <section class="security-stats-grid">
+        <div class="security-stat-card total">
+            <div class="stat-icon"><MudIcon Icon="@Icons.Material.Filled.Groups" /></div>
+            <div>
+                <span class="stat-label">إجمالي المستخدمين</span>
+                <strong>@_result.TotalCount</strong>
+            </div>
+        </div>
+        <div class="security-stat-card active">
+            <div class="stat-icon"><MudIcon Icon="@Icons.Material.Filled.VerifiedUser" /></div>
+            <div>
+                <span class="stat-label">نشط في الصفحة</span>
+                <strong>@_result.Items.Count(u => u.IsActive && !u.IsLocked)</strong>
+            </div>
+        </div>
+        <div class="security-stat-card locked">
+            <div class="stat-icon"><MudIcon Icon="@Icons.Material.Filled.Lock" /></div>
+            <div>
+                <span class="stat-label">حسابات مقفلة</span>
+                <strong>@_result.Items.Count(u => u.IsLocked)</strong>
+            </div>
+        </div>
+        <div class="security-stat-card roles">
+            <div class="stat-icon"><MudIcon Icon="@Icons.Material.Filled.Badge" /></div>
+            <div>
+                <span class="stat-label">الأدوار المتاحة</span>
+                <strong>@_roles.Count</strong>
+            </div>
+        </div>
+    </section>
+
+    <section class="users-toolbar-panel">
+        <div class="toolbar-main-search">
+            <MudTextField @bind-Value="_search"
+                          Placeholder="ابحث باسم المستخدم، البريد، الاسم..."
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          OnKeyUp="OnSearchKeyUp" />
+        </div>
+        <div class="toolbar-filters">
+            <MudSelect @bind-Value="_roleIdFilter" Label="الدور" Variant="Variant.Outlined" Clearable="true">
                 @foreach (var role in _roles)
                 {
                     <MudSelectItem Value="@role.Id">@role.DisplayName</MudSelectItem>
                 }
             </MudSelect>
-        </MudItem>
-        <MudItem xs="6" md="2">
-            <MudSelect @bind-Value="_activeFilter" Label="الحالة" Variant="Variant.Outlined" Size="Size.Small" Clearable="true">
+            <MudSelect @bind-Value="_activeFilter" Label="الحالة" Variant="Variant.Outlined" Clearable="true">
                 <MudSelectItem Value="@true">نشط</MudSelectItem>
                 <MudSelectItem Value="@false">معطّل</MudSelectItem>
             </MudSelect>
-        </MudItem>
-        <MudItem xs="12" md="2" Class="d-flex justify-end">
-            @if (_currentUser.HasPermission("SET_EDIT"))
-            {
-                <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                           OnClick="OpenCreate" StartIcon="@Icons.Material.Filled.PersonAdd">
-                    مستخدم جديد
-                </MudButton>
-            }
-        </MudItem>
-    </MudGrid>
-</div>
-
-@* ===== Users Table ===== *@
-<div class="dashboard-panel">
-    <div class="dashboard-panel-header">
-        <div class="dashboard-panel-title">
-            <MudIcon Icon="@Icons.Material.Filled.List" Color="Color.Primary" />
-            قائمة المستخدمين
-            <MudChip T="int" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary">
-                @_result.TotalCount إجمالي
-            </MudChip>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FilterAlt" OnClick="Search" Disabled="_loading">
+                تطبيق
+            </MudButton>
+            <MudButton Variant="Variant.Text" Color="Color.Default" StartIcon="@Icons.Material.Filled.RestartAlt" OnClick="ResetFilters" Disabled="_loading">
+                إعادة ضبط
+            </MudButton>
         </div>
-    </div>
-    <div style="padding: 0;">
+    </section>
+
+    <section class="users-data-panel">
+        <div class="users-data-header">
+            <div>
+                <div class="panel-title-line">
+                    <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Color="Color.Primary" />
+                    <span>قائمة المستخدمين</span>
+                    <span class="panel-count">@_result.TotalCount</span>
+                </div>
+                <p>الصفحة @_selectedPage من @Math.Max(1, _result.TotalPages)</p>
+            </div>
+        </div>
+
         @if (_loading)
         {
-            <div style="padding: 32px;">
-                @for (int i = 0; i < 5; i++)
+            <div class="users-loading-list">
+                @for (var i = 0; i < 6; i++)
                 {
-                    <div class="skeleton" style="height: 56px; margin-bottom: 8px;"></div>
+                    <div class="user-skeleton-row">
+                        <div class="skeleton avatar"></div>
+                        <div class="skeleton text wide"></div>
+                        <div class="skeleton text"></div>
+                        <div class="skeleton pill"></div>
+                    </div>
                 }
+            </div>
+        }
+        else if (_result.Items.Count == 0)
+        {
+            <div class="users-empty-state">
+                <div class="empty-icon"><MudIcon Icon="@Icons.Material.Filled.PersonSearch" /></div>
+                <h3>لا توجد نتائج مطابقة</h3>
+                <p>جرّب تغيير كلمات البحث أو إعادة ضبط الفلاتر.</p>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="ResetFilters">إعادة ضبط الفلاتر</MudButton>
             </div>
         }
         else
         {
-            <MudTable Items="@_result.Items" Hover="true" Elevation="0">
+            <MudTable Items="@_result.Items" Hover="true" Elevation="0" Class="modern-users-table">
                 <HeaderContent>
                     <MudTh>المستخدم</MudTh>
-                    <MudTh>البريد الإلكتروني</MudTh>
                     <MudTh>الدور</MudTh>
                     <MudTh>الحالة</MudTh>
                     <MudTh>آخر دخول</MudTh>
+                    <MudTh>تاريخ الإنشاء</MudTh>
                     <MudTh Style="text-align: center;">إجراءات</MudTh>
                 </HeaderContent>
                 <RowTemplate Context="u">
-                    <MudTd>
-                        <div class="d-flex align-center gap-2">
-                            <MudAvatar Image="@u.AvatarUrl" Color="Color.Primary" Size="Size.Small">
-                                @(u.DisplayName.Length > 0 ? u.DisplayName[..1] : "U")
-                            </MudAvatar>
-                            <div>
-                                <MudText Typo="Typo.body2" Style="color: var(--text-primary); font-weight: 600;">@u.DisplayName</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">@@@u.Username</MudText>
+                    <MudTd DataLabel="المستخدم">
+                        <div class="user-identity-cell">
+                            <div class="lux-avatar @(u.IsActive ? "" : "muted")">
+                                @if (!string.IsNullOrWhiteSpace(u.AvatarUrl))
+                                {
+                                    <img src="@u.AvatarUrl" alt="@u.DisplayName" />
+                                }
+                                else
+                                {
+                                    @GetInitials(u.DisplayName)
+                                }
+                            </div>
+                            <div class="user-text">
+                                <strong>@u.DisplayName</strong>
+                                <span>@@@u.Username</span>
+                                <small>@u.Email</small>
                             </div>
                         </div>
                     </MudTd>
-                    <MudTd><MudText Typo="Typo.body2">@u.Email</MudText></MudTd>
-                    <MudTd>
-                        <span class="status-chip role">@u.RoleDisplayName</span>
+                    <MudTd DataLabel="الدور">
+                        <span class="role-badge">@(u.RoleDisplayName ?? u.RoleName)</span>
                     </MudTd>
-                    <MudTd>
+                    <MudTd DataLabel="الحالة">
                         @if (!u.IsActive)
                         {
-                            <span class="status-chip disabled">معطّل</span>
+                            <span class="lux-status disabled"><i></i> معطّل</span>
                         }
                         else if (u.IsLocked)
                         {
-                            <span class="status-chip locked">مقفل</span>
+                            <span class="lux-status locked"><i></i> مقفل</span>
                         }
                         else
                         {
-                            <span class="status-chip active">نشط</span>
+                            <span class="lux-status active"><i></i> نشط</span>
                         }
                     </MudTd>
-                    <MudTd>
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                            @(u.LastLoginAt.HasValue ? u.LastLoginAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "—")
-                        </MudText>
+                    <MudTd DataLabel="آخر دخول">
+                        <span class="date-text">@(u.LastLoginAt.HasValue ? u.LastLoginAt.Value.ToLocalTime().ToString("yyyy/MM/dd HH:mm") : "لم يسجل بعد")</span>
                     </MudTd>
-                    <MudTd Style="text-align: center;">
-                        <MudMenu>
+                    <MudTd DataLabel="تاريخ الإنشاء">
+                        <span class="date-text">@u.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd")</span>
+                    </MudTd>
+                    <MudTd Style="text-align: center;" DataLabel="إجراءات">
+                        <MudMenu AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.TopCenter">
                             <ActivatorContent>
-                                <MudIconButton Icon="@Icons.Material.Filled.MoreVert" />
+                                <MudIconButton Icon="@Icons.Material.Filled.MoreHoriz" Class="row-action-button" />
                             </ActivatorContent>
                             <ChildContent>
-                                @if (_currentUser.HasPermission("SET_EDIT"))
+                                @if (_currentUser.HasPermission("USR_EDIT"))
                                 {
                                     <MudMenuItem OnClick="@(() => Edit(u))" Icon="@Icons.Material.Filled.Edit">تعديل</MudMenuItem>
-                                }
-                                @if (_currentUser.HasPermission("SET_EDIT"))
-                                {
-                                    <MudMenuItem Href="@($"/users/{u.Id}/permissions")" Icon="@Icons.Material.Filled.Lock">الصلاحيات</MudMenuItem>
-                                }
-                                @if (_currentUser.HasPermission("SET_EDIT"))
-                                {
                                     <MudMenuItem OnClick="@(() => ToggleActive(u))" Icon="@Icons.Material.Filled.PowerSettingsNew">
-                                        @(u.IsActive ? "تعطيل" : "تفعيل")
+                                        @(u.IsActive ? "تعطيل الحساب" : "تفعيل الحساب")
                                     </MudMenuItem>
                                     @if (u.IsLocked)
                                     {
                                         <MudMenuItem OnClick="@(() => Unlock(u))" Icon="@Icons.Material.Filled.LockOpen">فك القفل</MudMenuItem>
                                     }
+                                }
+                                @if (_currentUser.HasPermission("USR_PERMISSIONS"))
+                                {
+                                    <MudMenuItem Href="@($"/users/{u.Id}/permissions")" Icon="@Icons.Material.Filled.AdminPanelSettings">الصلاحيات المباشرة</MudMenuItem>
+                                }
+                                @if (_currentUser.HasPermission("USR_RESET_PASSWORD"))
+                                {
                                     <MudMenuItem OnClick="@(() => ResetPassword(u))" Icon="@Icons.Material.Filled.Key">إعادة تعيين كلمة المرور</MudMenuItem>
                                 }
-                                @if (_currentUser.HasPermission("SET_EDIT"))
+                                @if (_currentUser.HasPermission("USR_DELETE"))
                                 {
                                     <MudMenuItem Divider="true" />
                                     <MudMenuItem OnClick="@(() => Delete(u))" Icon="@Icons.Material.Filled.Delete" Color="Color.Error">حذف</MudMenuItem>
@@ -162,23 +223,16 @@
                         </MudMenu>
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent>
-                    <div class="empty-state">
-                        <MudIcon Icon="@Icons.Material.Filled.PersonOff" Class="empty-state-icon" />
-                        <MudText Typo="Typo.h6" Color="Color.Secondary">لا يوجد مستخدمون مطابقون</MudText>
-                        <MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-top: 8px;">
-                            جرّب تعديل معايير البحث أو إنشاء مستخدم جديد
-                        </MudText>
-                    </div>
-                </NoRecordsContent>
             </MudTable>
 
             @if (_result.TotalCount > 0)
             {
-                <MudPagination Count="@_result.TotalPages" Selected="@_selectedPage" OnSelected="OnPageChanged" Class="pa-4 justify-center" />
+                <div class="users-pagination-wrap">
+                    <MudPagination Count="@Math.Max(1, _result.TotalPages)" Selected="@_selectedPage" OnSelected="OnPageChanged" />
+                </div>
             }
         }
-    </div>
+    </section>
 </div>
 
 @code {
@@ -208,7 +262,6 @@
         _loading = true;
         try
         {
-            // نتأكد إن Page >= 1 قبل الإرسال
             var pageToLoad = Math.Max(1, _selectedPage);
 
             _result = await UserService.GetUsersAsync(new UserFilter
@@ -220,7 +273,7 @@
                 PageSize = 20
             });
 
-            _selectedPage = _result.Page; // sync
+            _selectedPage = Math.Max(1, _result.Page);
         }
         catch (Exception ex)
         {
@@ -233,9 +286,35 @@
         }
     }
 
-    private async Task Search() { _selectedPage = 1; _result.Page = 1; await LoadData(); }
-    private async Task OnSearchKeyUp(KeyboardEventArgs e) { if (e.Key == "Enter") await Search(); }
-    private async Task OnPageChanged(int page) { _selectedPage = page; _result.Page = page; await LoadData(); }
+    private async Task Search()
+    {
+        _selectedPage = 1;
+        _result.Page = 1;
+        await LoadData();
+    }
+
+    private async Task RefreshAsync() => await LoadData();
+
+    private async Task ResetFilters()
+    {
+        _search = string.Empty;
+        _roleIdFilter = null;
+        _activeFilter = null;
+        await Search();
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await Search();
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        _selectedPage = page;
+        _result.Page = page;
+        await LoadData();
+    }
 
     private void OpenCreate() => Navigation.NavigateTo("/users/new");
     private void Edit(UserListItemDto u) => Navigation.NavigateTo($"/users/{u.Id}/edit");
@@ -243,14 +322,14 @@
     private async Task ToggleActive(UserListItemDto u)
     {
         var (ok, err) = await UserService.ToggleActiveAsync(u.Id, _currentUserId);
-        if (ok) { Snackbar.Add("تم تحديث الحالة", Severity.Success); await LoadData(); }
+        if (ok) { Snackbar.Add("تم تحديث حالة الحساب", Severity.Success); await LoadData(); }
         else Snackbar.Add(err ?? "فشل", Severity.Error);
     }
 
     private async Task Unlock(UserListItemDto u)
     {
         var (ok, err) = await UserService.UnlockAsync(u.Id, _currentUserId);
-        if (ok) { Snackbar.Add("تم فك القفل", Severity.Success); await LoadData(); }
+        if (ok) { Snackbar.Add("تم فك قفل الحساب", Severity.Success); await LoadData(); }
         else Snackbar.Add(err ?? "فشل", Severity.Error);
     }
 
@@ -258,7 +337,7 @@
     {
         var parameters = new DialogParameters
         {
-            ["Message"] = $"هل تريد حذف المستخدم «{u.DisplayName}»؟ هذا الإجراء يمكن التراجع عنه.",
+            ["Message"] = $"هل تريد حذف المستخدم «{u.DisplayName}»؟ هذا الإجراء يمكن التراجع عنه من قاعدة البيانات فقط.",
             ["YesText"] = "حذف",
             ["NoText"] = "إلغاء"
         };
@@ -266,7 +345,7 @@
         var result = await dialog.Result;
         if (result?.Canceled ?? true) return;
         var (success, err) = await UserService.DeleteAsync(u.Id, _currentUserId);
-        if (success) { Snackbar.Add("تم الحذف", Severity.Success); await LoadData(); }
+        if (success) { Snackbar.Add("تم حذف المستخدم", Severity.Success); await LoadData(); }
         else Snackbar.Add(err ?? "فشل", Severity.Error);
     }
 
@@ -285,5 +364,13 @@
                 else Snackbar.Add(err ?? "فشل", Severity.Error);
             }
         }
+    }
+
+    private static string GetInitials(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName)) return "U";
+        var parts = displayName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][..1].ToUpperInvariant();
+        return string.Concat(parts.Take(2).Select(p => p[..1])).ToUpperInvariant();
     }
 }

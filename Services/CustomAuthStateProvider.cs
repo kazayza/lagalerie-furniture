@@ -76,9 +76,10 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
         }
 
         _logger.LogDebug("GetAuthenticationStateAsync: anonymous (HttpContext null={IsNull})",
-            _httpContextAccessor.HttpContext == null);
+    _httpContextAccessor.HttpContext == null);
 
-        return Task.FromResult(new AuthenticationState(_cachedUser));
+var anonymousUser = _cachedUser ?? new ClaimsPrincipal(new ClaimsIdentity());
+return Task.FromResult(new AuthenticationState(anonymousUser));
     }
 
     /// <summary>

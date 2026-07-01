@@ -267,6 +267,10 @@ app.MapGet("/api/auth/login", async (
         new(ClaimTypes.GivenName, user.DisplayName),
         new(ClaimTypes.Role, tokenData.Role),
     };
+    if (!string.IsNullOrWhiteSpace(user.AvatarUrl))
+{
+    claims.Add(new Claim("avatar", user.AvatarUrl));
+}
 
     // إضافة كل أكواد الصلاحيات كـ claims مستقلة (للـ AuthorizeView و policy provider)
     foreach (var code in permissionCodes)
@@ -344,8 +348,9 @@ app.MapGet("/api/auth/me", async (
         DisplayName = user.FindFirst(ClaimTypes.GivenName)?.Value,
         Email = user.FindFirst(ClaimTypes.Email)?.Value,
         Role = user.FindFirst(ClaimTypes.Role)?.Value,
-        Claims = claims,
-        Permissions = permissionCodes
+AvatarUrl = user.FindFirst("avatar")?.Value,
+Claims = claims,
+Permissions = permissionCodes
     });
 }).RequireAuthorization();
 

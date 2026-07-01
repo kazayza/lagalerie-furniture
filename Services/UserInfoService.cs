@@ -108,6 +108,7 @@ public class UserInfoDto
     public string? DisplayName { get; set; }
     public string? Email { get; set; }
     public string? Role { get; set; }
+    public string? AvatarUrl { get; set; }
     public List<ClaimDto> Claims { get; set; } = new();
     public HashSet<string> Permissions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

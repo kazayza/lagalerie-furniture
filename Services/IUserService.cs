@@ -71,6 +71,7 @@ public class CreateUserDto
     public int? DefaultBranchId { get; set; }
     public bool IsActive { get; set; } = true;
     public bool MustChangePassword { get; set; }
+    public string? AvatarUrl { get; set; }
 }
 
 /// <summary>بيانات تعديل مستخدم.</summary>
@@ -83,4 +84,5 @@ public class UpdateUserDto
     public string LastName { get; set; } = null!;
     public int RoleId { get; set; }
     public int? DefaultBranchId { get; set; }
+    public string? AvatarUrl { get; set; }
 }

@@ -120,6 +120,7 @@ public class UserService : IUserService
             FirstName = dto.FirstName.Trim(),
             LastName = dto.LastName.Trim(),
             DisplayName = $"{dto.FirstName.Trim()} {dto.LastName.Trim()}",
+            AvatarUrl = string.IsNullOrWhiteSpace(dto.AvatarUrl) ? null : dto.AvatarUrl.Trim(),
             PasswordHash = _passwordHasher.Hash(dto.Password),
             RoleId = dto.RoleId,
             DefaultBranchId = dto.DefaultBranchId,
@@ -160,6 +161,7 @@ public class UserService : IUserService
         user.FirstName = dto.FirstName.Trim();
         user.LastName = dto.LastName.Trim();
         user.DisplayName = $"{user.FirstName} {user.LastName}";
+        user.AvatarUrl = string.IsNullOrWhiteSpace(dto.AvatarUrl) ? null : dto.AvatarUrl.Trim();
         user.RoleId = dto.RoleId;
         user.DefaultBranchId = dto.DefaultBranchId;
         user.UpdatedAt = DateTime.UtcNow;

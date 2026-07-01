@@ -5,6 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0b1120" />
     <base href="/" />
+    <script>
+        (function () {
+            const storageKey = 'lagalerie_theme_preference';
+            const getTheme = () => localStorage.getItem(storageKey) === 'light' ? 'light' : 'dark';
+            const apply = (theme) => {
+                const isLight = theme === 'light';
+                document.documentElement.classList.toggle('lagalerie-light', isLight);
+                document.documentElement.classList.toggle('lagalerie-dark', !isLight);
+                document.body?.classList.toggle('lagalerie-light', isLight);
+                document.body?.classList.toggle('lagalerie-dark', !isLight);
+            };
+            window.lagalerieTheme = {
+                apply: (theme) => apply(theme || getTheme()),
+                current: getTheme
+            };
+            apply(getTheme());
+        })();
+    </script>
     <link rel="stylesheet" href="css/site.css" />
     <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet" />
