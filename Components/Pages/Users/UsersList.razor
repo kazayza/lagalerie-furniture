@@ -190,37 +190,63 @@
                         <span class="date-text">@u.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd")</span>
                     </MudTd>
                     <MudTd Style="text-align: center;" DataLabel="إجراءات">
-                        <MudMenu AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.TopCenter">
-                            <ActivatorContent>
-                                <MudIconButton Icon="@Icons.Material.Filled.MoreHoriz" Class="row-action-button" />
-                            </ActivatorContent>
-                            <ChildContent>
-                                @if (_currentUser.HasPermission("USR_EDIT"))
+                        <div class="users-inline-actions">
+                            @if (_currentUser.HasPermission("USR_EDIT"))
+                            {
+                                <MudTooltip Text="تعديل">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                   Size="Size.Small"
+                                                   Class="row-action-button"
+                                                   OnClick="@(() => Edit(u))" />
+                                </MudTooltip>
+                                <MudTooltip Text="@(u.IsActive ? "تعطيل الحساب" : "تفعيل الحساب")">
+                                    <MudIconButton Icon="@Icons.Material.Filled.PowerSettingsNew"
+                                                   Size="Size.Small"
+                                                   Class="row-action-button"
+                                                   OnClick="@(() => ToggleActive(u))" />
+                                </MudTooltip>
+                                @if (u.IsLocked)
                                 {
-                                    <MudMenuItem OnClick="@(() => Edit(u))" Icon="@Icons.Material.Filled.Edit">تعديل</MudMenuItem>
-                                    <MudMenuItem OnClick="@(() => ToggleActive(u))" Icon="@Icons.Material.Filled.PowerSettingsNew">
-                                        @(u.IsActive ? "تعطيل الحساب" : "تفعيل الحساب")
-                                    </MudMenuItem>
-                                    @if (u.IsLocked)
-                                    {
-                                        <MudMenuItem OnClick="@(() => Unlock(u))" Icon="@Icons.Material.Filled.LockOpen">فك القفل</MudMenuItem>
-                                    }
+                                    <MudTooltip Text="فك القفل">
+                                        <MudIconButton Icon="@Icons.Material.Filled.LockOpen"
+                                                       Size="Size.Small"
+                                                       Class="row-action-button"
+                                                       OnClick="@(() => Unlock(u))" />
+                                    </MudTooltip>
                                 }
-                                @if (_currentUser.HasPermission("USR_PERMISSIONS"))
-                                {
-                                    <MudMenuItem Href="@($"/users/{u.Id}/permissions")" Icon="@Icons.Material.Filled.AdminPanelSettings">الصلاحيات المباشرة</MudMenuItem>
-                                }
-                                @if (_currentUser.HasPermission("USR_RESET_PASSWORD"))
-                                {
-                                    <MudMenuItem OnClick="@(() => ResetPassword(u))" Icon="@Icons.Material.Filled.Key">إعادة تعيين كلمة المرور</MudMenuItem>
-                                }
-                                @if (_currentUser.HasPermission("USR_DELETE"))
-                                {
-                                    <MudMenuItem Divider="true" />
-                                    <MudMenuItem OnClick="@(() => Delete(u))" Icon="@Icons.Material.Filled.Delete" Color="Color.Error">حذف</MudMenuItem>
-                                }
-                            </ChildContent>
-                        </MudMenu>
+                            }
+
+                            @if (_currentUser.HasPermission("USR_PERMISSIONS"))
+                            {
+                                <MudTooltip Text="الصلاحيات المباشرة">
+                                    <MudIconButton Icon="@Icons.Material.Filled.AdminPanelSettings"
+                                                   Size="Size.Small"
+                                                   Class="row-action-button"
+                                                   OnClick="@(() => Navigation.NavigateTo($"/users/{u.Id}/permissions"))" />
+                                </MudTooltip>
+                            }
+
+                            @if (_currentUser.HasPermission("USR_RESET_PASSWORD"))
+                            {
+                                <MudTooltip Text="إعادة تعيين كلمة المرور">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Key"
+                                                   Size="Size.Small"
+                                                   Class="row-action-button"
+                                                   OnClick="@(() => ResetPassword(u))" />
+                                </MudTooltip>
+                            }
+
+                            @if (_currentUser.HasPermission("USR_DELETE"))
+                            {
+                                <MudTooltip Text="حذف">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                   Size="Size.Small"
+                                                   Color="Color.Error"
+                                                   Class="row-action-button danger"
+                                                   OnClick="@(() => Delete(u))" />
+                                </MudTooltip>
+                            }
+                        </div>
                     </MudTd>
                 </RowTemplate>
             </MudTable>

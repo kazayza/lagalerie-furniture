@@ -24,7 +24,14 @@
 else
 {
     <div class="security-form-shell">
-        <section class="security-form-hero">
+        <section class="security-form-hero user-edit-hero">
+            <MudTooltip Text="رجوع لقائمة المستخدمين">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                               Color="Color.Inherit"
+                               Class="hero-back-button"
+                               OnClick="Cancel"
+                               Disabled="_saving" />
+            </MudTooltip>
             <div>
                 <div class="users-kicker">
                     <MudIcon Icon="@(_isEdit ? Icons.Material.Filled.EditNote : Icons.Material.Filled.PersonAdd)" Size="Size.Small" />
@@ -33,18 +40,26 @@ else
                 <h1>@(_isEdit ? "تعديل مستخدم" : "مستخدم جديد")</h1>
                 <p>
                     @(_isEdit
-                        ? "حدّث بيانات المستخدم الأساسية، الدور، الفرع الافتراضي وحالة الحساب."
-                        : "أنشئ حساب مستخدم جديد وحدد بيانات الدخول والدور والفرع الافتراضي بشكل آمن.")
+                        ? "حدّث بيانات المستخدم الأساسية، الصورة الشخصية، الدور، الفرع الافتراضي وحالة الحساب."
+                        : "أنشئ حساب مستخدم جديد وحدد بيانات الدخول والصورة الشخصية والدور بشكل آمن.")
                 </p>
             </div>
-            <div class="security-form-hero-icon">
-                <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" />
+            <div class="security-form-hero-avatar">
+                @if (!string.IsNullOrWhiteSpace(_avatarPreviewUrl))
+                {
+                    <img src="@_avatarPreviewUrl" alt="صورة المستخدم" />
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" />
+                }
             </div>
         </section>
 
         <MudPaper Elevation="0" Class="security-form-card">
-            <EditForm Model="@_model" OnValidSubmit="Save">
+            <EditForm Model="@_model" OnSubmit="HandleSubmit">
                 <DataAnnotationsValidator />
+                <ValidationSummary />
 
                 <div class="user-avatar-editor-panel">
                     <div class="avatar-preview-frame">
@@ -69,9 +84,9 @@ else
                                 <span>اختيار صورة</span>
                                 <InputFile OnChange="OnAvatarSelected" accept="image/png,image/jpeg,image/webp" />
                             </label>
-                            @if (!string.IsNullOrWhiteSpace(_model.AvatarUrl) || _avatarFile is not null)
+                            @if (!string.IsNullOrWhiteSpace(_model.AvatarUrl) || _avatarFile is not null || !string.IsNullOrWhiteSpace(_avatarPreviewUrl))
                             {
-                                <button type="button" class="avatar-remove-button" @onclick="RemoveAvatar">
+                                <button type="button" class="avatar-remove-button" @onclick="RemoveAvatar" disabled="@_saving">
                                     <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" />
                                     <span>إزالة الصورة</span>
                                 </button>
@@ -197,7 +212,7 @@ else
                     </MudButton>
                     <MudButton Variant="Variant.Filled"
                                Color="Color.Primary"
-                               Type="@ButtonType.Submit"
+                               ButtonType="ButtonType.Submit"
                                StartIcon="@Icons.Material.Filled.Save"
                                Disabled="_saving">
                         @(_saving ? "جاري الحفظ..." : "حفظ")
@@ -275,7 +290,18 @@ else
         _loading = false;
     }
 
-    private async Task Save(EditContext ctx)
+    private async Task HandleSubmit(EditContext ctx)
+    {
+        if (!ctx.Validate())
+        {
+            Snackbar.Add("من فضلك راجع البيانات المطلوبة قبل الحفظ.", Severity.Warning);
+            return;
+        }
+
+        await SaveAsync();
+    }
+
+    private async Task SaveAsync()
     {
         if (!_canSave)
         {
@@ -283,12 +309,17 @@ else
             return;
         }
 
+        if (_saving) return;
+
         _saving = true;
         try
         {
             var avatarUrl = await SaveAvatarIfNeededAsync();
             if (_avatarError is not null)
+            {
+                Snackbar.Add(_avatarError, Severity.Error);
                 return;
+            }
 
             _model.AvatarUrl = avatarUrl;
 
@@ -301,7 +332,7 @@ else
                     Phone = _model.Phone,
                     FirstName = _model.FirstName!,
                     LastName = _model.LastName!,
-RoleId = _model.RoleId,
+                    RoleId = _model.RoleId,
                     DefaultBranchId = _model.DefaultBranchId,
                     AvatarUrl = _model.AvatarUrl
                 }, _currentUserId);
@@ -344,6 +375,10 @@ RoleId = _model.RoleId,
                 }
             }
         }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"حدث خطأ أثناء الحفظ: {ex.Message}", Severity.Error);
+        }
         finally
         {
             _saving = false;
@@ -360,6 +395,7 @@ RoleId = _model.RoleId,
         {
             _avatarError = "حجم الصورة يجب ألا يتجاوز 2MB.";
             _avatarFile = null;
+            Snackbar.Add(_avatarError, Severity.Warning);
             return;
         }
 
@@ -367,12 +403,14 @@ RoleId = _model.RoleId,
         {
             _avatarError = "صيغة الصورة غير مدعومة. استخدم JPG أو PNG أو WebP.";
             _avatarFile = null;
+            Snackbar.Add(_avatarError, Severity.Warning);
             return;
         }
 
-        var buffer = new byte[_avatarFile.Size];
-        await _avatarFile.OpenReadStream(MaxAvatarBytes).ReadAsync(buffer);
-        _avatarPreviewUrl = $"data:{_avatarFile.ContentType};base64,{Convert.ToBase64String(buffer)}";
+        using var stream = _avatarFile.OpenReadStream(MaxAvatarBytes);
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory);
+        _avatarPreviewUrl = $"data:{_avatarFile.ContentType};base64,{Convert.ToBase64String(memory.ToArray())}";
     }
 
     private void RemoveAvatar()
@@ -382,6 +420,7 @@ RoleId = _model.RoleId,
         _avatarPreviewUrl = null;
         _model.AvatarUrl = null;
         _removeAvatar = true;
+        Snackbar.Add("تم تحديد الصورة للإزالة. اضغط حفظ لتطبيق التغيير.", Severity.Info);
     }
 
     private async Task<string?> SaveAvatarIfNeededAsync()
@@ -413,7 +452,7 @@ RoleId = _model.RoleId,
                 return _model.AvatarUrl;
             }
 
-            var fileName = $"user-{(_isEdit ? Id : 0)}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}{extension}";
+            var fileName = $"user-{(_isEdit ? Id : "new")}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}{extension}";
             var filePath = Path.Combine(uploadsRoot, fileName);
 
             await using var fileStream = File.Create(filePath);
